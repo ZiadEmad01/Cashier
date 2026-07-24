@@ -28,7 +28,7 @@
     --accent:#D4AF37;
     --accent-deep:#A9821F;
     --teal:#F0D77B;
-    --danger:#E2574C;
+    --danger:#C9A227;
     --line:#332C1B;
     --shadow: 0 12px 30px rgba(0,0,0,0.55);
   }
@@ -134,7 +134,9 @@
   .sum-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 20px;flex:1;min-width:140px;box-shadow:var(--shadow);}
   .sum-card .label{font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;}
   .sum-card .val{font-family:'Cairo',sans-serif;font-weight:800;font-size:22px;color:var(--teal);}
-  .sale-row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+  .sale-row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:border-color .15s, transform .1s;}
+  .sale-row:hover{border-color:var(--accent);}
+  .sale-row:active{transform:scale(0.99);}
   .sale-row .time{font-size:11.5px;color:var(--ink-soft);}
   .sale-row .items{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
   .sale-row .amt{font-family:'IBM Plex Mono',monospace;font-weight:700;direction:ltr;color:var(--teal);}
@@ -163,7 +165,7 @@
   #toastWrap{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;align-items:center;}
   .toast{background:#000;color:var(--ink);border:1px solid var(--line);padding:11px 20px;border-radius:30px;font-size:13px;box-shadow:var(--shadow);opacity:0;transform:translateY(10px);transition:all .25s;}
   .toast.show{opacity:1;transform:translateY(0);}
-  .toast.err{background:var(--danger);color:#fff;border-color:var(--danger);}
+  .toast.err{background:#000;color:var(--danger);border-color:var(--danger);}
   .toast.ok{background:var(--accent);color:#161207;border-color:var(--accent);}
 
   ::-webkit-scrollbar{width:6px;}
@@ -356,29 +358,50 @@
 
 <!-- ============ INVOICE MODAL ============ -->
 <div class="modal-overlay" id="invoiceModal">
-  <div class="modal" style="max-width:380px;padding:0;overflow:hidden;">
-    <div class="modal-top" style="padding:18px 22px 0;margin-bottom:0;">
-      <h3 style="margin:0">الفاتورة</h3>
+  <div class="modal" style="max-width:380px;padding:0;overflow:hidden;position:relative;">
+    <div class="modal-top" style="padding:14px 18px 0;margin-bottom:0;position:relative;z-index:2;">
+      <h3 style="margin:0;font-size:15px;color:var(--ink-soft);">الفاتورة</h3>
       <button onclick="closeInvoice()">✕</button>
     </div>
-    <div id="invoicePrintArea" style="padding:18px 22px;">
-      <div style="text-align:center;margin-bottom:10px;">
-        <div style="display:inline-flex;align-items:center;gap:6px;font-family:'Cairo',sans-serif;font-weight:800;font-size:18px;color:var(--ink);">
-          <svg width="22" height="22" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
-            <rect x="1" y="1" width="62" height="62" rx="16" fill="#D4AF37"/>
+
+    <div id="invoicePrintArea" style="position:relative;padding:6px 22px 20px;overflow:hidden;">
+      <!-- شعار خافت كخلفية للفاتورة -->
+      <svg viewBox="0 0 64 64" style="position:absolute;top:-10px;right:-30px;width:200px;height:200px;opacity:0.06;transform:rotate(-8deg);z-index:0;pointer-events:none;" xmlns="http://www.w3.org/2000/svg">
+        <path d="M20 21 H44 L20 43 H44" fill="none" stroke="#D4AF37" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="47" cy="16" r="3" fill="#D4AF37"/>
+      </svg>
+
+      <div style="position:relative;z-index:1;">
+        <div style="text-align:center;padding-top:8px;margin-bottom:14px;">
+          <svg width="40" height="40" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg" style="margin-bottom:8px;">
+            <defs>
+              <linearGradient id="zgradInv" x1="0" y1="0" x2="64" y2="64">
+                <stop offset="0" stop-color="#F0D77B"/>
+                <stop offset="1" stop-color="#B8860B"/>
+              </linearGradient>
+            </defs>
+            <rect x="1" y="1" width="62" height="62" rx="16" fill="url(#zgradInv)"/>
             <path d="M20 21 H44 L20 43 H44" fill="none" stroke="#0A0A0A" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
             <circle cx="47" cy="16" r="3" fill="#0A0A0A"/>
           </svg>
-          ZCashier
+          <div id="invStoreName" style="font-family:'Cairo',sans-serif;font-weight:800;font-size:20px;color:var(--accent);">اسم المحل</div>
+          <div style="font-size:10.5px;color:var(--ink-soft);letter-spacing:1px;margin-top:2px;">POWERED BY ZCASHIER</div>
         </div>
-        <div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;" id="invMeta"></div>
+
+        <div style="display:flex;justify-content:space-between;font-size:11.5px;color:var(--ink-soft);border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:8px 0;margin-bottom:10px;">
+          <span id="invDate"></span>
+          <span id="invNo"></span>
+        </div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;">الكاشير: <span id="invCashier" class="mono" style="color:var(--ink)"></span></div>
+
+        <div style="border-bottom:1px dashed var(--line);padding-bottom:10px;margin-bottom:10px;" id="invItems"></div>
+        <div class="row-between"><span>عدد القطع</span><span class="mono" id="invCount">0</span></div>
+        <div class="row-total"><span>الإجمالي</span><span class="mono" id="invTotal">0.00</span></div>
+        <div style="text-align:center;font-size:11px;color:var(--ink-soft);margin-top:12px;">شكرًا لتعاملكم معنا 🌸</div>
       </div>
-      <div style="border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:10px 0;margin-bottom:10px;" id="invItems"></div>
-      <div class="row-between"><span>عدد القطع</span><span class="mono" id="invCount">0</span></div>
-      <div class="row-total"><span>الإجمالي</span><span class="mono" id="invTotal">0.00</span></div>
-      <div style="text-align:center;font-size:11px;color:var(--ink-soft);margin-top:12px;">شكرًا لتعاملكم معنا 🌸</div>
     </div>
-    <div class="modal-actions" style="padding:0 22px 22px;margin-top:8px;">
+
+    <div class="modal-actions" style="padding:0 22px 22px;margin-top:8px;position:relative;z-index:2;">
       <button class="save" onclick="printInvoice()">طباعة الفاتورة</button>
       <button class="cancel" onclick="closeInvoice()">إغلاق</button>
     </div>
@@ -411,6 +434,9 @@ const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
 
 // الإيميلات اللي ليها صلاحية كاملة (تبويب "الإدارة": تغيير الباسورد، إضافة كاشيرية، مشاهدة القائمة)
 const ADMIN_EMAILS = ['cashier@eg.com'];
+
+// اسم المحل اللي هيظهر في الفاتورة — غيّره لاسم محلك
+const STORE_NAME = "اسم المحل";
 
 /* ---------------- state ---------------- */
 let products = [];
@@ -767,7 +793,7 @@ async function checkout(){
     await batch.commit();
     beep(660,0.15); setTimeout(()=>beep(990,0.15),150);
     toast('تمت عملية البيع بنجاح ✅','ok');
-    openInvoice(cart.slice(), total, auth.currentUser.email);
+    openInvoice(cart.slice(), total, auth.currentUser.email, new Date(), saleRef.id);
     clearCart();
     document.getElementById('recentHit').classList.remove('show');
   }catch(e){
@@ -778,9 +804,11 @@ async function checkout(){
 }
 
 /* ---------------- sales tab ---------------- */
+let salesCache = [];
 function listenSalesToday(){
   db.collection('sales').orderBy('createdAt','desc').limit(100).onSnapshot(snap=>{
     const sales = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    salesCache = sales;
     const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
     const todaySales = sales.filter(s=>s.createdAt && s.createdAt.toDate() >= startOfDay);
     const total = todaySales.reduce((s,x)=>s+x.total,0);
@@ -792,7 +820,7 @@ function listenSalesToday(){
     list.innerHTML = sales.map(s=>{
       const time = s.createdAt ? s.createdAt.toDate().toLocaleString('ar-EG') : '...';
       const itemsSummary = s.items.map(i=>i.name+' ×'+i.qty).join('، ');
-      return `<div class="sale-row">
+      return `<div class="sale-row" onclick="openSaleInvoice('${s.id}')">
         <div>
           <div class="time">${time}</div>
           <div class="items">${itemsSummary}</div>
@@ -801,6 +829,13 @@ function listenSalesToday(){
       </div>`;
     }).join('');
   });
+}
+
+function openSaleInvoice(id){
+  const s = salesCache.find(x=>x.id===id);
+  if(!s) return;
+  const dateObj = s.createdAt ? s.createdAt.toDate() : new Date();
+  openInvoice(s.items, s.total, s.cashier, dateObj, s.id);
 }
 
 /* ---------------- change my own password ---------------- */
@@ -880,10 +915,12 @@ async function removeCashierFromList(id){
 }
 
 /* ---------------- invoice ---------------- */
-function openInvoice(items, total, cashierEmail){
-  const now = new Date();
-  document.getElementById('invMeta').textContent =
-    now.toLocaleString('ar-EG') + ' · الكاشير: ' + cashierEmail;
+function openInvoice(items, total, cashierEmail, dateObj, saleId){
+  const d = dateObj || new Date();
+  document.getElementById('invStoreName').textContent = STORE_NAME;
+  document.getElementById('invDate').textContent = d.toLocaleString('ar-EG');
+  document.getElementById('invNo').textContent = saleId ? ('فاتورة #'+saleId.slice(-6).toUpperCase()) : '';
+  document.getElementById('invCashier').textContent = cashierEmail || '';
   document.getElementById('invItems').innerHTML = items.map(c=>`
     <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;">
       <span>${c.name} <span class="mono" style="color:var(--ink-soft)">×${c.qty}</span></span>
@@ -899,12 +936,13 @@ function closeInvoice(){
 }
 function printInvoice(){
   const content = document.getElementById('invoicePrintArea').innerHTML;
-  const w = window.open('', '', 'width=380,height=600');
+  const w = window.open('', '', 'width=380,height=640');
   w.document.write(`
-    <html dir="rtl"><head><title>فاتورة ZCashier</title>
+    <html dir="rtl"><head><title>فاتورة ${STORE_NAME}</title>
     <style>
-      body{font-family:Arial,'Tahoma',sans-serif;padding:16px;color:#211F1B;}
+      body{font-family:Arial,'Tahoma',sans-serif;padding:18px;color:#1A1A1A;}
       .mono{direction:ltr;unicode-bidi:isolate;font-family:'Courier New',monospace;}
+      svg{filter:none;}
     </style></head>
     <body>${content}</body></html>`);
   w.document.close();
