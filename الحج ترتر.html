@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
+<title>الكاشير | نظام نقاط البيع</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
+
+<!-- Firebase (compat) -->
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore-compat.js"></script>
+
+<!-- Camera barcode scanning -->
+<script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
+<!-- Barcode label rendering -->
+<script src="https://cdn.jsdelivr.net/npm/jsbarcode@3.11.6/dist/JsBarcode.all.min.js"></script>
+
+<style>
+  :root{
+    --bg:#EDEEE9;
+    --ink:#211F1B;
+    --ink-soft:#5B584F;
+    --card:#FBFAF6;
+    --accent:#C68A2E;
+    --accent-deep:#93641A;
+    --teal:#1F4B44;
+    --danger:#AE4430;
+    --line:#D7D2C3;
+    --shadow: 0 6px 18px rgba(33,31,27,0.08);
+  }
+  *{box-sizing:border-box;}
+  body{margin:0;background:var(--bg);color:var(--ink);font-family:'IBM Plex Sans Arabic',sans-serif;}
+  h1,h2,h3,.display{font-family:'Cairo',sans-serif;}
+  .mono{font-family:'IBM Plex Mono',monospace;direction:ltr;unicode-bidi:isolate;}
+  button{font-family:inherit;cursor:pointer;border:none;}
+  input,select{font-family:inherit;}
+
+  /* ---------- Login ---------- */
+  #loginScreen{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px;}
+  .login-card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:36px 30px;width:100%;max-width:360px;box-shadow:var(--shadow);text-align:center;}
+  .login-card .mark{width:56px;height:56px;border-radius:50%;background:var(--accent);margin:0 auto 14px;display:flex;align-items:center;justify-content:center;color:#fff;font-size:26px;font-weight:800;}
+  .login-card h1{font-size:22px;margin:0 0 4px;}
+  .login-card p{color:var(--ink-soft);font-size:13px;margin:0 0 22px;}
+  .field{text-align:right;margin-bottom:12px;}
+  .field label{display:block;font-size:12px;color:var(--ink-soft);margin-bottom:5px;}
+  .field input{width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#fff;font-size:14px;}
+  .field input:focus{outline:2px solid var(--accent);outline-offset:1px;}
+  .btn{padding:12px 16px;border-radius:10px;font-weight:600;font-size:14px;}
+  .btn-primary{background:var(--accent);color:#fff;width:100%;}
+  .btn-primary:hover{background:var(--accent-deep);}
+  #loginErr{color:var(--danger);font-size:12.5px;margin-top:10px;min-height:16px;}
+
+  /* ---------- App shell ---------- */
+  #app{display:none;min-height:100vh;padding-bottom:70px;}
+  header{background:var(--ink);color:#fff;padding:14px 18px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:20;}
+  header .brand{font-family:'Cairo',sans-serif;font-weight:800;font-size:18px;display:flex;align-items:center;gap:8px;}
+  header .brand .dot{width:9px;height:9px;border-radius:50%;background:var(--accent);}
+  header .userbox{font-size:12px;color:#cfcbbf;display:flex;align-items:center;gap:10px;}
+  header .userbox button{background:transparent;color:#cfcbbf;font-size:12px;text-decoration:underline;}
+
+  nav{display:flex;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:56px;z-index:19;}
+  nav button{flex:1;padding:13px 6px;background:transparent;color:var(--ink-soft);font-weight:600;font-size:13.5px;border-bottom:3px solid transparent;}
+  nav button.active{color:var(--ink);border-bottom-color:var(--accent);}
+
+  main{max-width:1100px;margin:0 auto;padding:18px;}
+  .tabpage{display:none;}
+  .tabpage.active{display:block;}
+
+  /* ---------- POS layout ---------- */
+  .pos-grid{display:grid;grid-template-columns:1fr;gap:16px;}
+  @media(min-width:860px){.pos-grid{grid-template-columns:1.4fr 1fr;}}
+
+  .scan-panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:var(--shadow);}
+  .scan-btn{width:120px;height:120px;border-radius:50%;background:radial-gradient(circle at 35% 30%, var(--accent), var(--accent-deep));color:#fff;font-size:15px;font-weight:700;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:6px;margin:6px auto 18px;box-shadow:0 10px 22px rgba(150,100,20,0.35);}
+  .scan-btn:active{transform:scale(0.97);}
+  .scan-hint{text-align:center;color:var(--ink-soft);font-size:12.5px;margin-bottom:18px;}
+  .manual-row{display:flex;gap:8px;}
+  .manual-row input{flex:1;padding:11px 12px;border:1px solid var(--line);border-radius:10px;font-size:14px;}
+  .manual-row button{background:var(--ink);color:#fff;padding:0 16px;border-radius:10px;font-weight:600;font-size:13px;}
+
+  .recent-hit{margin-top:16px;border:1px dashed var(--line);border-radius:12px;padding:12px;display:none;}
+  .recent-hit.show{display:flex;align-items:center;justify-content:space-between;gap:10px;}
+  .recent-hit .name{font-weight:600;font-size:14px;}
+  .recent-hit .meta{color:var(--ink-soft);font-size:12px;}
+  .recent-hit .price{font-family:'IBM Plex Mono',monospace;font-weight:600;color:var(--teal);}
+
+  /* Receipt-tape cart */
+  .receipt{background:var(--card);border:1px solid var(--line);border-radius:4px 4px 18px 18px;box-shadow:var(--shadow);position:relative;overflow:hidden;}
+  .receipt::before{content:"";display:block;height:10px;background-image:radial-gradient(circle at 10px 5px, var(--bg) 5px, transparent 6px);background-size:20px 10px;background-repeat:repeat-x;}
+  .receipt-head{padding:14px 18px 10px;border-bottom:1px dashed var(--line);}
+  .receipt-head h3{margin:0;font-size:15px;}
+  .receipt-body{padding:10px 18px;max-height:340px;overflow-y:auto;}
+  .cart-empty{text-align:center;color:var(--ink-soft);font-size:13px;padding:30px 0;}
+  .cart-item{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px dashed var(--line);gap:8px;}
+  .cart-item:last-child{border-bottom:none;}
+  .cart-item .ci-name{font-size:13.5px;font-weight:600;}
+  .cart-item .ci-sub{font-size:11.5px;color:var(--ink-soft);}
+  .qty{display:flex;align-items:center;gap:6px;}
+  .qty button{width:24px;height:24px;border-radius:6px;background:var(--bg);border:1px solid var(--line);font-size:14px;line-height:1;}
+  .qty span{min-width:18px;text-align:center;font-family:'IBM Plex Mono',monospace;font-size:13px;}
+  .ci-price{font-family:'IBM Plex Mono',monospace;font-size:13.5px;min-width:64px;text-align:left;direction:ltr;}
+  .ci-remove{color:var(--danger);font-size:11px;background:transparent;text-decoration:underline;}
+
+  .receipt-foot{padding:14px 18px 18px;border-top:1px dashed var(--line);}
+  .row-between{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;margin-bottom:6px;color:var(--ink-soft);}
+  .row-total{display:flex;justify-content:space-between;align-items:center;font-size:19px;font-weight:800;margin:8px 0 14px;font-family:'Cairo',sans-serif;}
+  .row-total .mono{color:var(--teal);}
+  .checkout-btn{width:100%;background:var(--teal);color:#fff;padding:14px;border-radius:12px;font-weight:700;font-size:15px;}
+  .checkout-btn:disabled{opacity:0.45;}
+  .clear-btn{width:100%;background:transparent;color:var(--danger);font-size:12.5px;padding:8px;margin-top:6px;}
+
+  /* ---------- Products tab ---------- */
+  .toolbar{display:flex;gap:10px;margin-bottom:16px;flex-wrap:wrap;}
+  .toolbar input[type=text]{flex:1;min-width:180px;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:var(--card);}
+  .toolbar .btn-add{background:var(--accent);color:#fff;padding:11px 18px;border-radius:10px;font-weight:700;font-size:13.5px;}
+
+  .product-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(220px,1fr));gap:12px;}
+  .p-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;box-shadow:var(--shadow);}
+  .p-card .p-cat{display:inline-block;font-size:10.5px;color:var(--accent-deep);background:#F3E4C6;padding:2px 8px;border-radius:20px;margin-bottom:8px;}
+  .p-card h4{margin:0 0 4px;font-size:14.5px;}
+  .p-card .p-barcode{font-size:11px;color:var(--ink-soft);margin-bottom:8px;}
+  .p-card .p-price{font-family:'IBM Plex Mono',monospace;font-weight:700;color:var(--teal);font-size:15px;margin-bottom:2px;direction:ltr;text-align:right;}
+  .p-card .p-stock{font-size:11px;color:var(--ink-soft);margin-bottom:10px;}
+  .p-card .p-actions{display:flex;gap:6px;}
+  .p-card .p-actions button{flex:1;padding:7px;border-radius:8px;font-size:11.5px;font-weight:600;background:var(--bg);}
+  .p-card .p-actions .del{color:var(--danger);}
+
+  /* ---------- Sales tab ---------- */
+  .sales-summary{display:flex;gap:12px;flex-wrap:wrap;margin-bottom:16px;}
+  .sum-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 20px;flex:1;min-width:140px;box-shadow:var(--shadow);}
+  .sum-card .label{font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;}
+  .sum-card .val{font-family:'Cairo',sans-serif;font-weight:800;font-size:22px;color:var(--teal);}
+  .sale-row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;}
+  .sale-row .time{font-size:11.5px;color:var(--ink-soft);}
+  .sale-row .items{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
+  .sale-row .amt{font-family:'IBM Plex Mono',monospace;font-weight:700;direction:ltr;}
+
+  /* ---------- Modal ---------- */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(33,31,27,0.55);z-index:50;align-items:center;justify-content:center;padding:16px;}
+  .modal-overlay.show{display:flex;}
+  .modal{background:#fff;border-radius:18px;width:100%;max-width:420px;max-height:90vh;overflow-y:auto;padding:22px;}
+  .modal h3{margin:0 0 16px;font-size:17px;}
+  .modal .close{position:absolute;}
+  .modal-top{display:flex;justify-content:space-between;align-items:center;margin-bottom:16px;}
+  .modal-top button{background:var(--bg);width:28px;height:28px;border-radius:8px;font-size:14px;}
+  #readerBox{border-radius:12px;overflow:hidden;background:#000;}
+  .form-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+  .form-grid .full{grid-column:1/-1;}
+  .form-grid .field input,.form-grid .field select{width:100%;padding:10px;border:1px solid var(--line);border-radius:9px;font-size:13.5px;}
+  .barcode-row{display:flex;gap:8px;align-items:flex-end;}
+  .barcode-row .field{flex:1;}
+  .gen-btn{background:var(--ink);color:#fff;padding:10px 12px;border-radius:9px;font-size:12px;white-space:nowrap;}
+  .modal-actions{display:flex;gap:8px;margin-top:18px;}
+  .modal-actions .save{flex:1;background:var(--accent);color:#fff;padding:12px;border-radius:10px;font-weight:700;}
+  .modal-actions .cancel{background:var(--bg);padding:12px 16px;border-radius:10px;font-weight:600;}
+  #labelPreview{text-align:center;padding:16px;border:1px dashed var(--line);border-radius:10px;margin-top:14px;}
+
+  /* ---------- Toast ---------- */
+  #toastWrap{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);z-index:80;display:flex;flex-direction:column;gap:8px;align-items:center;}
+  .toast{background:var(--ink);color:#fff;padding:11px 20px;border-radius:30px;font-size:13px;box-shadow:var(--shadow);opacity:0;transform:translateY(10px);transition:all .25s;}
+  .toast.show{opacity:1;transform:translateY(0);}
+  .toast.err{background:var(--danger);}
+  .toast.ok{background:var(--teal);}
+
+  ::-webkit-scrollbar{width:6px;}
+  ::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;}
+</style>
+</head>
+<body>
+
+<!-- ============ LOGIN ============ -->
+<div id="loginScreen">
+  <div class="login-card">
+    <div class="mark">ك</div>
+    <h1>تسجيل الدخول للكاشير</h1>
+    <p>سجّل دخولك علشان تفتح شاشة البيع</p>
+    <div class="field"><label>الإيميل</label><input type="email" id="loginEmail" placeholder="cashier@store.com"></div>
+    <div class="field"><label>كلمة المرور</label><input type="password" id="loginPass" placeholder="••••••••"></div>
+    <button class="btn btn-primary" onclick="doLogin()">دخول</button>
+    <div id="loginErr"></div>
+  </div>
+</div>
+
+<!-- ============ APP ============ -->
+<div id="app">
+  <header>
+    <div class="brand"><span class="dot"></span> كاشير المحل</div>
+    <div class="userbox"><span id="userEmail"></span><button onclick="openPasswordModal()">تغيير كلمة المرور</button><button onclick="doLogout()">خروج</button></div>
+  </header>
+
+  <nav>
+    <button class="tabbtn active" data-tab="pos">الكاشير</button>
+    <button class="tabbtn" data-tab="products">المنتجات</button>
+    <button class="tabbtn" data-tab="sales">المبيعات</button>
+    <button class="tabbtn" data-tab="admin" id="adminTabBtn" style="display:none">الإدارة</button>
+  </nav>
+
+  <main>
+    <!-- ---------- POS TAB ---------- -->
+    <section id="tab-pos" class="tabpage active">
+      <div class="pos-grid">
+        <div class="scan-panel">
+          <button class="scan-btn" onclick="openScanner()">📷<br>امسح الباركود</button>
+          <div class="scan-hint">وجّه كاميرا الموبايل ناحية الباركود، أو دخّله يدويًا تحت</div>
+          <div class="manual-row">
+            <input type="text" id="manualBarcode" placeholder="اكتب رقم الباركود يدويًا..." onkeydown="if(event.key==='Enter')lookupManual()">
+            <button onclick="lookupManual()">إضافة</button>
+          </div>
+          <div class="recent-hit" id="recentHit">
+            <div><div class="name" id="rhName"></div><div class="meta" id="rhMeta"></div></div>
+            <div class="price mono" id="rhPrice"></div>
+          </div>
+        </div>
+
+        <div class="receipt">
+          <div class="receipt-head"><h3>سلة الحساب</h3></div>
+          <div class="receipt-body" id="cartBody">
+            <div class="cart-empty">السلة فاضية — امسح أول منتج</div>
+          </div>
+          <div class="receipt-foot">
+            <div class="row-between"><span>عدد القطع</span><span class="mono" id="cartCount">0</span></div>
+            <div class="row-total"><span>الإجمالي</span><span class="mono" id="cartTotal">0.00</span></div>
+            <button class="checkout-btn" id="checkoutBtn" disabled onclick="checkout()">إتمام البيع</button>
+            <button class="clear-btn" onclick="clearCart()">تفريغ السلة</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ---------- PRODUCTS TAB ---------- -->
+    <section id="tab-products" class="tabpage">
+      <div class="toolbar">
+        <input type="text" id="productSearch" placeholder="دور بالاسم أو الباركود..." oninput="renderProducts()">
+        <button class="btn-add" onclick="openProductForm()">+ منتج جديد</button>
+      </div>
+      <div class="product-grid" id="productGrid"></div>
+    </section>
+
+    <!-- ---------- SALES TAB ---------- -->
+    <section id="tab-sales" class="tabpage">
+      <div class="sales-summary">
+        <div class="sum-card"><div class="label">مبيعات النهاردة</div><div class="val mono" id="todayTotal">0.00</div></div>
+        <div class="sum-card"><div class="label">عدد الفواتير</div><div class="val mono" id="todayCount">0</div></div>
+      </div>
+      <div id="salesList"></div>
+    </section>
+
+    <!-- ---------- ADMIN TAB (حساب الإدارة بس) ---------- -->
+    <section id="tab-admin" class="tabpage">
+      <div class="receipt">
+        <div class="receipt-head"><h3>إضافة كاشير جديد</h3></div>
+        <div class="receipt-body" style="max-height:none">
+          <div class="field"><label>اسم الكاشير</label><input type="text" id="newCashierName" placeholder="مثال: أحمد"></div>
+          <div class="field"><label>الإيميل</label><input type="email" id="newCashierEmail" placeholder="cashier2@eg.com"></div>
+          <div class="field"><label>كلمة المرور</label><input type="password" id="newCashierPass" placeholder="6 حروف/أرقام على الأقل"></div>
+        </div>
+        <div class="receipt-foot" style="border-top:none;padding-top:0">
+          <button class="checkout-btn" onclick="addCashier()">إضافة الكاشير</button>
+        </div>
+      </div>
+
+      <h3 style="margin:20px 0 10px;font-size:15px">الكاشيرية المسجلين</h3>
+      <div id="cashiersList"></div>
+      <div class="scan-hint" style="text-align:right;margin-top:10px">
+        ملحوظة: زرار "حذف" هنا بيشيل الكاشير من القايمة بس. عشان تمنعه يدخل فعليًا لازم كمان تمسحه من
+        Firebase Console → Authentication → Users.
+      </div>
+    </section>
+  </main>
+</div>
+
+<!-- ============ SCANNER MODAL ============ -->
+<div class="modal-overlay" id="scanModal">
+  <div class="modal">
+    <div class="modal-top"><h3 style="margin:0">امسح الباركود</h3><button onclick="closeScanner()">✕</button></div>
+    <div id="readerBox"></div>
+    <div class="scan-hint" style="margin-top:12px">هيتضاف المنتج للسلة أوتوماتيك بمجرد ما الكاميرا تلاقي الباركود</div>
+  </div>
+</div>
+
+<!-- ============ PRODUCT FORM MODAL ============ -->
+<div class="modal-overlay" id="productModal">
+  <div class="modal">
+    <div class="modal-top"><h3 id="pmTitle" style="margin:0">منتج جديد</h3><button onclick="closeProductForm()">✕</button></div>
+    <div class="form-grid">
+      <div class="field full"><label>اسم المنتج</label><input type="text" id="pfName" placeholder="مثال: قميص كتان أزرق"></div>
+      <div class="field"><label>النوع</label>
+        <input type="text" id="pfCategory" list="catList" placeholder="قمصان">
+        <datalist id="catList">
+          <option value="قمصان"><option value="بناطيل"><option value="جاكيتات"><option value="فساتين">
+          <option value="تنانير"><option value="أحذية"><option value="حقائب"><option value="إكسسوارات">
+        </datalist>
+      </div>
+      <div class="field"><label>السعر (جنيه)</label><input type="number" id="pfPrice" placeholder="450"></div>
+      <div class="field"><label>المقاس</label><input type="text" id="pfSize" placeholder="M"></div>
+      <div class="field"><label>اللون</label><input type="text" id="pfColor" placeholder="أزرق"></div>
+      <div class="field full"><label>الكمية بالمخزن</label><input type="number" id="pfStock" placeholder="10"></div>
+      <div class="field full">
+        <label>الباركود</label>
+        <div class="barcode-row">
+          <div class="field" style="margin-bottom:0"><input type="text" id="pfBarcode" placeholder="امسحه أو ولّده"></div>
+          <button class="gen-btn" onclick="generateBarcodeField()">توليد رقم</button>
+        </div>
+      </div>
+    </div>
+    <div id="labelPreview" style="display:none"><svg id="barcodeSvg"></svg><div style="font-size:12px;color:var(--ink-soft);margin-top:6px">معاينة الملصق — اضغط طباعة لطبعه</div><button class="btn-add" style="margin-top:8px" onclick="printLabel()">طباعة الملصق</button></div>
+    <div class="modal-actions">
+      <button class="save" onclick="saveProduct()">حفظ</button>
+      <button class="cancel" onclick="closeProductForm()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ PASSWORD MODAL ============ -->
+<div class="modal-overlay" id="passwordModal">
+  <div class="modal">
+    <div class="modal-top"><h3 style="margin:0">تغيير كلمة المرور</h3><button onclick="closePasswordModal()">✕</button></div>
+    <div class="field"><label>كلمة المرور الحالية</label><input type="password" id="curPass" placeholder="••••••••"></div>
+    <div class="field"><label>كلمة المرور الجديدة</label><input type="password" id="newPass" placeholder="6 حروف/أرقام على الأقل"></div>
+    <div class="modal-actions">
+      <button class="save" onclick="changeMyPassword()">حفظ</button>
+      <button class="cancel" onclick="closePasswordModal()">إلغاء</button>
+    </div>
+  </div>
+</div>
+
+<div id="toastWrap"></div>
+
+<script>
+/* =========================================================
+   FIREBASE CONFIG — استبدل القيم دي ببيانات مشروعك من
+   Firebase Console > Project settings > General > Your apps
+   ========================================================= */
+const firebaseConfig = {
+  apiKey: "AIzaSyDHx0SsM5Xtw6mb0x8xCDc1RUzt_Tk2W10",
+  authDomain: "cashier-8289d.firebaseapp.com",
+  projectId: "cashier-8289d",
+  storageBucket: "cashier-8289d.firebasestorage.app",
+  messagingSenderId: "866249232157",
+  appId: "1:866249232157:web:4819e01cc1a943b6919bf4"
+};
+firebase.initializeApp(firebaseConfig);
+const auth = firebase.auth();
+const db = firebase.firestore();
+auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
+
+// تطبيق فايربيز ثانوي مستقل، بيُستخدم بس لإنشاء حسابات كاشيرية جداد
+// من غير ما يسجّل خروج الأدمن اللي داخل حاليًا
+const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
+
+// الإيميلات اللي ليها صلاحية كاملة (تبويب "الإدارة": تغيير الباسورد، إضافة كاشيرية، مشاهدة القائمة)
+const ADMIN_EMAILS = ['cashier@eg.com'];
+
+/* ---------------- state ---------------- */
+let products = [];
+let cart = []; // {id, barcode, name, price, qty}
+let editingProductId = null;
+let html5QrCode = null;
+
+/* ---------------- auth ---------------- */
+auth.onAuthStateChanged(user=>{
+  if(user){
+    document.getElementById('loginScreen').style.display='none';
+    document.getElementById('app').style.display='block';
+    document.getElementById('userEmail').textContent = user.email;
+
+    const isAdmin = ADMIN_EMAILS.includes((user.email||'').toLowerCase());
+    const adminBtn = document.getElementById('adminTabBtn');
+    adminBtn.style.display = isAdmin ? '' : 'none';
+    if(!isAdmin){
+      // لو كاشير عادي، نتأكد إنه واقف على تبويب الكاشير مش الإدارة
+      document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('active'));
+      document.querySelectorAll('.tabpage').forEach(p=>p.classList.remove('active'));
+      document.querySelector('.tabbtn[data-tab="pos"]').classList.add('active');
+      document.getElementById('tab-pos').classList.add('active');
+    }
+
+    listenProducts();
+    listenSalesToday();
+    listenCashiers();
+  } else {
+    document.getElementById('loginScreen').style.display='flex';
+    document.getElementById('app').style.display='none';
+  }
+});
+
+function doLogin(){
+  const email = document.getElementById('loginEmail').value.trim();
+  const pass = document.getElementById('loginPass').value;
+  const errEl = document.getElementById('loginErr');
+  errEl.textContent = '';
+  if(!email || !pass){ errEl.textContent = 'من فضلك دخّل الإيميل وكلمة المرور'; return; }
+  auth.signInWithEmailAndPassword(email, pass).catch(err=>{
+    errEl.textContent = 'بيانات الدخول غلط أو الحساب مش موجود';
+    console.error(err);
+  });
+}
+function doLogout(){ auth.signOut(); }
+
+/* ---------------- tabs ---------------- */
+document.querySelectorAll('.tabbtn').forEach(btn=>{
+  btn.addEventListener('click', ()=>{
+    document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tabpage').forEach(p=>p.classList.remove('active'));
+    btn.classList.add('active');
+    document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+  });
+});
+
+/* ---------------- toast + sound ---------------- */
+function toast(msg, type=''){
+  const wrap = document.getElementById('toastWrap');
+  const t = document.createElement('div');
+  t.className = 'toast '+type;
+  t.textContent = msg;
+  wrap.appendChild(t);
+  requestAnimationFrame(()=>t.classList.add('show'));
+  setTimeout(()=>{ t.classList.remove('show'); setTimeout(()=>t.remove(),300); }, 2400);
+}
+function beep(freq=880, dur=0.12){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    const osc = ctx.createOscillator(); const gain = ctx.createGain();
+    osc.frequency.value = freq; osc.type='sine';
+    osc.connect(gain); gain.connect(ctx.destination);
+    gain.gain.setValueAtTime(0.2, ctx.currentTime);
+    gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+dur);
+    osc.start(); osc.stop(ctx.currentTime+dur);
+  }catch(e){}
+}
+
+/* ---------------- products: load + render ---------------- */
+function listenProducts(){
+  db.collection('products').orderBy('name').onSnapshot(snap=>{
+    products = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderProducts();
+  });
+}
+function renderProducts(){
+  const q = (document.getElementById('productSearch')?.value||'').trim().toLowerCase();
+  const grid = document.getElementById('productGrid');
+  if(!grid) return;
+  const list = products.filter(p=>!q || p.name.toLowerCase().includes(q) || (p.barcode||'').includes(q));
+  if(list.length===0){ grid.innerHTML = '<div class="cart-empty">مفيش منتجات — ضيف منتج جديد</div>'; return; }
+  grid.innerHTML = list.map(p=>`
+    <div class="p-card">
+      <span class="p-cat">${p.category||'عام'}</span>
+      <h4>${p.name}</h4>
+      <div class="p-barcode mono">#${p.barcode||'—'}</div>
+      <div class="p-price">${(+p.price).toFixed(2)} ج.م</div>
+      <div class="p-stock">المخزون: ${p.stock ?? 0} ${p.size?('· مقاس '+p.size):''} ${p.color?('· '+p.color):''}</div>
+      <div class="p-actions">
+        <button onclick='editProduct("${p.id}")'>تعديل</button>
+        <button onclick='openLabelForExisting("${p.id}")'>ملصق</button>
+        <button class="del" onclick='deleteProduct("${p.id}")'>حذف</button>
+      </div>
+    </div>`).join('');
+}
+
+/* ---------------- product form ---------------- */
+function openProductForm(){
+  editingProductId = null;
+  document.getElementById('pmTitle').textContent = 'منتج جديد';
+  ['pfName','pfCategory','pfPrice','pfSize','pfColor','pfStock','pfBarcode'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('labelPreview').style.display='none';
+  document.getElementById('productModal').classList.add('show');
+}
+function editProduct(id){
+  const p = products.find(x=>x.id===id);
+  if(!p) return;
+  editingProductId = id;
+  document.getElementById('pmTitle').textContent = 'تعديل المنتج';
+  document.getElementById('pfName').value = p.name||'';
+  document.getElementById('pfCategory').value = p.category||'';
+  document.getElementById('pfPrice').value = p.price||'';
+  document.getElementById('pfSize').value = p.size||'';
+  document.getElementById('pfColor').value = p.color||'';
+  document.getElementById('pfStock').value = p.stock||0;
+  document.getElementById('pfBarcode').value = p.barcode||'';
+  document.getElementById('labelPreview').style.display='none';
+  document.getElementById('productModal').classList.add('show');
+}
+function closeProductForm(){ document.getElementById('productModal').classList.remove('show'); }
+
+function generateBarcodeField(){
+  const code = 'ZS' + Date.now().toString().slice(-10);
+  document.getElementById('pfBarcode').value = code;
+}
+
+async function saveProduct(){
+  const name = document.getElementById('pfName').value.trim();
+  const category = document.getElementById('pfCategory').value.trim();
+  const price = parseFloat(document.getElementById('pfPrice').value);
+  const size = document.getElementById('pfSize').value.trim();
+  const color = document.getElementById('pfColor').value.trim();
+  const stock = parseInt(document.getElementById('pfStock').value)||0;
+  let barcode = document.getElementById('pfBarcode').value.trim();
+
+  if(!name || isNaN(price)){ toast('اكتب اسم المنتج والسعر','err'); return; }
+  if(!barcode){ barcode = 'ZS'+Date.now().toString().slice(-10); document.getElementById('pfBarcode').value = barcode; }
+
+  // barcode uniqueness check (skip current doc when editing)
+  const dup = products.find(p=>p.barcode===barcode && p.id!==editingProductId);
+  if(dup){ toast('الباركود ده مستخدم قبل كده لمنتج تاني','err'); return; }
+
+  const data = {name, category, price, size, color, stock, barcode};
+  try{
+    if(editingProductId){
+      await db.collection('products').doc(editingProductId).update(data);
+      toast('اتحفظ التعديل ✅','ok');
+    } else {
+      data.createdAt = firebase.firestore.FieldValue.serverTimestamp();
+      await db.collection('products').add(data);
+      toast('اتضاف المنتج ✅','ok');
+    }
+    showLabelPreview(barcode, name, price);
+  }catch(e){
+    console.error(e); toast('حصل خطأ في الحفظ','err');
+  }
+}
+
+async function deleteProduct(id){
+  if(!confirm('متأكد إنك عايز تمسح المنتج ده؟')) return;
+  await db.collection('products').doc(id).delete();
+  toast('اتمسح المنتج','ok');
+}
+
+/* ---------------- barcode label preview/print ---------------- */
+function showLabelPreview(barcode, name, price){
+  const wrap = document.getElementById('labelPreview');
+  wrap.style.display='block';
+  wrap.dataset.name = name; wrap.dataset.price = price; wrap.dataset.barcode = barcode;
+  JsBarcode("#barcodeSvg", barcode, {format:"CODE128", width:2, height:55, displayValue:true, fontSize:13, margin:6});
+}
+function openLabelForExisting(id){
+  const p = products.find(x=>x.id===id);
+  if(!p) return;
+  editingProductId = id;
+  document.getElementById('pmTitle').textContent = 'ملصق المنتج';
+  document.getElementById('pfName').value = p.name;
+  document.getElementById('pfCategory').value = p.category||'';
+  document.getElementById('pfPrice').value = p.price;
+  document.getElementById('pfSize').value = p.size||'';
+  document.getElementById('pfColor').value = p.color||'';
+  document.getElementById('pfStock').value = p.stock||0;
+  document.getElementById('pfBarcode').value = p.barcode;
+  showLabelPreview(p.barcode, p.name, p.price);
+  document.getElementById('productModal').classList.add('show');
+}
+function printLabel(){
+  const wrap = document.getElementById('labelPreview');
+  const w = window.open('', '', 'width=400,height=300');
+  w.document.write(`
+    <html dir="rtl"><head><title>ملصق</title>
+    <style>body{font-family:sans-serif;text-align:center;padding:14px}</style></head>
+    <body>
+      <div style="font-weight:bold;font-size:14px">${wrap.dataset.name}</div>
+      <div style="font-size:13px;margin-bottom:6px">${(+wrap.dataset.price).toFixed(2)} ج.م</div>
+      ${document.getElementById('barcodeSvg').outerHTML}
+    </body></html>`);
+  w.document.close(); w.print();
+}
+
+/* ---------------- scanner ---------------- */
+function openScanner(){
+  document.getElementById('scanModal').classList.add('show');
+  html5QrCode = new Html5Qrcode("readerBox");
+  const config = { fps: 12, qrbox: {width:250, height:140},
+    formatsToSupport: [
+      Html5QrcodeSupportedFormats.EAN_13, Html5QrcodeSupportedFormats.EAN_8,
+      Html5QrcodeSupportedFormats.CODE_128, Html5QrcodeSupportedFormats.CODE_39,
+      Html5QrcodeSupportedFormats.UPC_A, Html5QrcodeSupportedFormats.UPC_E,
+      Html5QrcodeSupportedFormats.QR_CODE
+    ]};
+  html5QrCode.start({facingMode:"environment"}, config, onScanSuccess).catch(err=>{
+    toast('مقدرش أفتح الكاميرا — تأكد من صلاحية الوصول','err');
+    console.error(err);
+  });
+}
+function closeScanner(){
+  document.getElementById('scanModal').classList.remove('show');
+  if(html5QrCode){
+    html5QrCode.stop().then(()=>html5QrCode.clear()).catch(()=>{});
+  }
+}
+function onScanSuccess(decodedText){
+  if(html5QrCode){ html5QrCode.pause(true); }
+  handleBarcode(decodedText);
+  setTimeout(()=>{
+    if(html5QrCode){ try{ html5QrCode.resume(); }catch(e){} }
+  }, 1200);
+}
+
+/* ---------------- barcode lookup + cart ---------------- */
+function lookupManual(){
+  const input = document.getElementById('manualBarcode');
+  const code = input.value.trim();
+  if(!code) return;
+  handleBarcode(code);
+  input.value='';
+}
+function handleBarcode(code){
+  const p = products.find(x=>x.barcode===code);
+  const rh = document.getElementById('recentHit');
+  if(!p){
+    beep(220,0.18);
+    toast('المنتج غير موجود — ضيفه من تبويب المنتجات', 'err');
+    rh.classList.remove('show');
+    return;
+  }
+  beep(880,0.1);
+  addToCart(p);
+  rh.classList.add('show');
+  document.getElementById('rhName').textContent = p.name;
+  document.getElementById('rhMeta').textContent = (p.category||'')+(p.size?(' · مقاس '+p.size):'');
+  document.getElementById('rhPrice').textContent = (+p.price).toFixed(2)+' ج.م';
+}
+function addToCart(p){
+  const existing = cart.find(c=>c.id===p.id);
+  if(existing){ existing.qty += 1; }
+  else { cart.push({id:p.id, barcode:p.barcode, name:p.name, price:+p.price, qty:1}); }
+  renderCart();
+}
+function changeQty(id, delta){
+  const item = cart.find(c=>c.id===id);
+  if(!item) return;
+  item.qty += delta;
+  if(item.qty<=0) cart = cart.filter(c=>c.id!==id);
+  renderCart();
+}
+function removeItem(id){ cart = cart.filter(c=>c.id!==id); renderCart(); }
+function clearCart(){ cart = []; renderCart(); }
+
+function renderCart(){
+  const body = document.getElementById('cartBody');
+  const checkoutBtn = document.getElementById('checkoutBtn');
+  if(cart.length===0){
+    body.innerHTML = '<div class="cart-empty">السلة فاضية — امسح أول منتج</div>';
+    checkoutBtn.disabled = true;
+  } else {
+    body.innerHTML = cart.map(c=>`
+      <div class="cart-item">
+        <div>
+          <div class="ci-name">${c.name}</div>
+          <div class="ci-sub mono">#${c.barcode}</div>
+        </div>
+        <div class="qty">
+          <button onclick="changeQty('${c.id}',-1)">−</button>
+          <span>${c.qty}</span>
+          <button onclick="changeQty('${c.id}',1)">+</button>
+        </div>
+        <div class="ci-price mono">${(c.price*c.qty).toFixed(2)}</div>
+        <button class="ci-remove" onclick="removeItem('${c.id}')">حذف</button>
+      </div>`).join('');
+    checkoutBtn.disabled = false;
+  }
+  const count = cart.reduce((s,c)=>s+c.qty,0);
+  const total = cart.reduce((s,c)=>s+c.qty*c.price,0);
+  document.getElementById('cartCount').textContent = count;
+  document.getElementById('cartTotal').textContent = total.toFixed(2);
+}
+
+/* ---------------- checkout ---------------- */
+async function checkout(){
+  if(cart.length===0) return;
+  const total = cart.reduce((s,c)=>s+c.qty*c.price,0);
+  const checkoutBtn = document.getElementById('checkoutBtn');
+  checkoutBtn.disabled = true; checkoutBtn.textContent = 'جاري الحفظ...';
+  try{
+    const batch = db.batch();
+    const saleRef = db.collection('sales').doc();
+    batch.set(saleRef, {
+      items: cart.map(c=>({productId:c.id, barcode:c.barcode, name:c.name, price:c.price, qty:c.qty})),
+      total,
+      cashier: auth.currentUser.email,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    cart.forEach(c=>{
+      const p = products.find(x=>x.id===c.id);
+      const newStock = Math.max(0,(p?.stock||0)-c.qty);
+      batch.update(db.collection('products').doc(c.id), {stock:newStock});
+    });
+    await batch.commit();
+    beep(660,0.15); setTimeout(()=>beep(990,0.15),150);
+    toast('تمت عملية البيع بنجاح ✅','ok');
+    clearCart();
+    document.getElementById('recentHit').classList.remove('show');
+  }catch(e){
+    console.error(e); toast('حصل خطأ أثناء إتمام البيع','err');
+  }finally{
+    checkoutBtn.disabled = cart.length===0; checkoutBtn.textContent='إتمام البيع';
+  }
+}
+
+/* ---------------- sales tab ---------------- */
+function listenSalesToday(){
+  db.collection('sales').orderBy('createdAt','desc').limit(100).onSnapshot(snap=>{
+    const sales = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+    const todaySales = sales.filter(s=>s.createdAt && s.createdAt.toDate() >= startOfDay);
+    const total = todaySales.reduce((s,x)=>s+x.total,0);
+    document.getElementById('todayTotal').textContent = total.toFixed(2);
+    document.getElementById('todayCount').textContent = todaySales.length;
+
+    const list = document.getElementById('salesList');
+    if(sales.length===0){ list.innerHTML = '<div class="cart-empty">لسه مفيش عمليات بيع</div>'; return; }
+    list.innerHTML = sales.map(s=>{
+      const time = s.createdAt ? s.createdAt.toDate().toLocaleString('ar-EG') : '...';
+      const itemsSummary = s.items.map(i=>i.name+' ×'+i.qty).join('، ');
+      return `<div class="sale-row">
+        <div>
+          <div class="time">${time}</div>
+          <div class="items">${itemsSummary}</div>
+        </div>
+        <div class="amt">${s.total.toFixed(2)} ج.م</div>
+      </div>`;
+    }).join('');
+  });
+}
+
+/* ---------------- change my own password ---------------- */
+function openPasswordModal(){ document.getElementById('passwordModal').classList.add('show'); }
+function closePasswordModal(){
+  document.getElementById('passwordModal').classList.remove('show');
+  document.getElementById('curPass').value = '';
+  document.getElementById('newPass').value = '';
+}
+async function changeMyPassword(){
+  const curPass = document.getElementById('curPass').value;
+  const newPass = document.getElementById('newPass').value;
+  if(!curPass || !newPass){ toast('اكتب كلمة المرور الحالية والجديدة','err'); return; }
+  if(newPass.length < 6){ toast('كلمة المرور الجديدة لازم تكون 6 حروف/أرقام على الأقل','err'); return; }
+  const user = auth.currentUser;
+  try{
+    const cred = firebase.auth.EmailAuthProvider.credential(user.email, curPass);
+    await user.reauthenticateWithCredential(cred);
+    await user.updatePassword(newPass);
+    closePasswordModal();
+    toast('اتغيرت كلمة المرور بنجاح ✅','ok');
+  }catch(e){
+    console.error(e);
+    if(e.code === 'auth/wrong-password'){ toast('كلمة المرور الحالية غلط','err'); }
+    else { toast('حصل خطأ، جرب تاني','err'); }
+  }
+}
+
+/* ---------------- add / list cashiers ---------------- */
+async function addCashier(){
+  const name = document.getElementById('newCashierName').value.trim();
+  const email = document.getElementById('newCashierEmail').value.trim();
+  const pass = document.getElementById('newCashierPass').value;
+  if(!name || !email || !pass){ toast('املأ كل الخانات','err'); return; }
+  if(pass.length < 6){ toast('كلمة المرور لازم تكون 6 حروف/أرقام على الأقل','err'); return; }
+  try{
+    // بيتعمل على تطبيق فايربيز ثانوي عشان جلسة الأدمن الحالية متتأثرش
+    await secondaryApp.auth().createUserWithEmailAndPassword(email, pass);
+    await secondaryApp.auth().signOut();
+    await db.collection('cashiers').add({
+      name, email, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    document.getElementById('newCashierName').value = '';
+    document.getElementById('newCashierEmail').value = '';
+    document.getElementById('newCashierPass').value = '';
+    toast('اتضاف الكاشير بنجاح ✅','ok');
+  }catch(e){
+    console.error(e);
+    if(e.code === 'auth/email-already-in-use'){ toast('الإيميل ده مستخدم قبل كده','err'); }
+    else if(e.code === 'auth/weak-password'){ toast('كلمة المرور ضعيفة','err'); }
+    else { toast('حصل خطأ أثناء الإضافة','err'); }
+  }
+}
+
+function listenCashiers(){
+  db.collection('cashiers').orderBy('createdAt','desc').onSnapshot(snap=>{
+    const list = document.getElementById('cashiersList');
+    if(!list) return;
+    if(snap.empty){ list.innerHTML = '<div class="cart-empty">لسه مفيش كاشيرية مضافين من هنا</div>'; return; }
+    list.innerHTML = snap.docs.map(d=>{
+      const c = d.data();
+      return `<div class="sale-row">
+        <div>
+          <div style="font-weight:600;font-size:13.5px">${c.name}</div>
+          <div class="time mono">${c.email}</div>
+        </div>
+        <button class="ci-remove" onclick="removeCashierFromList('${d.id}')">حذف من القائمة</button>
+      </div>`;
+    }).join('');
+  });
+}
+
+async function removeCashierFromList(id){
+  if(!confirm('هيتشال من القائمة بس، الحساب هيفضل شغال لحد ما تمسحه من Firebase Console. متأكد؟')) return;
+  await db.collection('cashiers').doc(id).delete();
+  toast('اتشال من القائمة','ok');
+}
+</script>
+</body>
+</html>
