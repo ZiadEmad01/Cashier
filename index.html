@@ -3,7 +3,8 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1">
-<title>الكاشير | نظام نقاط البيع</title>
+<title>ZCashier | نظام نقاط البيع</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Crect width='64' height='64' rx='16' fill='%23C68A2E'/%3E%3Ctext x='32' y='44' font-family='Arial,sans-serif' font-weight='800' font-size='30' fill='%23fff' text-anchor='middle'%3EZ%3C/text%3E%3C/svg%3E">
 
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Cairo:wght@600;700;800&family=IBM+Plex+Sans+Arabic:wght@400;500;600&family=IBM+Plex+Mono:wght@500;600&display=swap" rel="stylesheet">
@@ -174,9 +175,15 @@
 <!-- ============ LOGIN ============ -->
 <div id="loginScreen">
   <div class="login-card">
-    <div class="mark">ك</div>
-    <h1>تسجيل الدخول للكاشير</h1>
-    <p>سجّل دخولك علشان تفتح شاشة البيع</p>
+    <div class="mark">
+      <svg width="30" height="30" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <rect x="10" y="16" width="44" height="34" rx="6" fill="#fff" opacity="0.15"/>
+        <path d="M18 26h28l-6 22H24z" fill="#fff" opacity="0.9"/>
+        <text x="32" y="42" font-family="Cairo, Arial, sans-serif" font-weight="800" font-size="24" fill="#93641A" text-anchor="middle">Z</text>
+      </svg>
+    </div>
+    <h1>تسجيل الدخول لـ ZCashier</h1>
+    <p>سجّل دخولك في ZCashier علشان تفتح شاشة البيع</p>
     <div class="field"><label>الإيميل</label><input type="email" id="loginEmail" placeholder="cashier@store.com"></div>
     <div class="field"><label>كلمة المرور</label><input type="password" id="loginPass" placeholder="••••••••"></div>
     <button class="btn btn-primary" onclick="doLogin()">دخول</button>
@@ -187,7 +194,14 @@
 <!-- ============ APP ============ -->
 <div id="app">
   <header>
-    <div class="brand"><span class="dot"></span> كاشير المحل</div>
+    <div class="brand">
+      <svg width="26" height="26" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+        <rect width="64" height="64" rx="16" fill="url(#zg)"/>
+        <defs><linearGradient id="zg" x1="0" y1="0" x2="64" y2="64"><stop offset="0" stop-color="#C68A2E"/><stop offset="1" stop-color="#93641A"/></linearGradient></defs>
+        <text x="32" y="43" font-family="Cairo, Arial, sans-serif" font-weight="800" font-size="28" fill="#fff" text-anchor="middle">Z</text>
+      </svg>
+      ZCashier
+    </div>
     <div class="userbox"><span id="userEmail"></span><button onclick="openPasswordModal()">تغيير كلمة المرور</button><button onclick="doLogout()">خروج</button></div>
   </header>
 
@@ -327,6 +341,36 @@
   </div>
 </div>
 
+<!-- ============ INVOICE MODAL ============ -->
+<div class="modal-overlay" id="invoiceModal">
+  <div class="modal" style="max-width:380px;padding:0;overflow:hidden;">
+    <div class="modal-top" style="padding:18px 22px 0;margin-bottom:0;">
+      <h3 style="margin:0">الفاتورة</h3>
+      <button onclick="closeInvoice()">✕</button>
+    </div>
+    <div id="invoicePrintArea" style="padding:18px 22px;">
+      <div style="text-align:center;margin-bottom:10px;">
+        <div style="display:inline-flex;align-items:center;gap:6px;font-family:'Cairo',sans-serif;font-weight:800;font-size:18px;">
+          <svg width="22" height="22" viewBox="0 0 64 64" xmlns="http://www.w3.org/2000/svg">
+            <rect width="64" height="64" rx="16" fill="#C68A2E"/>
+            <text x="32" y="43" font-family="Cairo, Arial, sans-serif" font-weight="800" font-size="28" fill="#fff" text-anchor="middle">Z</text>
+          </svg>
+          ZCashier
+        </div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-top:4px;" id="invMeta"></div>
+      </div>
+      <div style="border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:10px 0;margin-bottom:10px;" id="invItems"></div>
+      <div class="row-between"><span>عدد القطع</span><span class="mono" id="invCount">0</span></div>
+      <div class="row-total"><span>الإجمالي</span><span class="mono" id="invTotal">0.00</span></div>
+      <div style="text-align:center;font-size:11px;color:var(--ink-soft);margin-top:12px;">شكرًا لتعاملكم معنا 🌸</div>
+    </div>
+    <div class="modal-actions" style="padding:0 22px 22px;margin-top:8px;">
+      <button class="save" onclick="printInvoice()">طباعة الفاتورة</button>
+      <button class="cancel" onclick="closeInvoice()">إغلاق</button>
+    </div>
+  </div>
+</div>
+
 <div id="toastWrap"></div>
 
 <script>
@@ -429,6 +473,22 @@ function beep(freq=880, dur=0.12){
     gain.gain.setValueAtTime(0.2, ctx.currentTime);
     gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime+dur);
     osc.start(); osc.stop(ctx.currentTime+dur);
+  }catch(e){}
+}
+// صوت "قبول" مميز — نغمتين صاعدتين زي أصوات نقاط البيع
+function acceptSound(){
+  try{
+    const ctx = new (window.AudioContext||window.webkitAudioContext)();
+    [[880,0],[1320,0.09]].forEach(([freq,delay])=>{
+      const osc = ctx.createOscillator(); const gain = ctx.createGain();
+      osc.frequency.value = freq; osc.type='sine';
+      osc.connect(gain); gain.connect(ctx.destination);
+      const t = ctx.currentTime + delay;
+      gain.gain.setValueAtTime(0.001, t);
+      gain.gain.exponentialRampToValueAtTime(0.22, t+0.02);
+      gain.gain.exponentialRampToValueAtTime(0.001, t+0.16);
+      osc.start(t); osc.stop(t+0.18);
+    });
   }catch(e){}
 }
 
@@ -588,10 +648,16 @@ function closeScanner(){
 }
 function onScanSuccess(decodedText){
   if(html5QrCode){ html5QrCode.pause(true); }
-  handleBarcode(decodedText);
-  setTimeout(()=>{
-    if(html5QrCode){ try{ html5QrCode.resume(); }catch(e){} }
-  }, 1200);
+  const found = handleBarcode(decodedText);
+  if(found){
+    // منتج اتلقى واتضاف — اقفل شاشة الكاميرا أوتوماتيك
+    setTimeout(()=>{ closeScanner(); }, 350);
+  } else {
+    // باركود مش معروف — سيب الكاميرا شغالة يجرب تاني
+    setTimeout(()=>{
+      if(html5QrCode){ try{ html5QrCode.resume(); }catch(e){} }
+    }, 1200);
+  }
 }
 
 /* ---------------- barcode lookup + cart ---------------- */
@@ -609,14 +675,15 @@ function handleBarcode(code){
     beep(220,0.18);
     toast('المنتج غير موجود — ضيفه من تبويب المنتجات', 'err');
     rh.classList.remove('show');
-    return;
+    return false;
   }
-  beep(880,0.1);
+  acceptSound();
   addToCart(p);
   rh.classList.add('show');
   document.getElementById('rhName').textContent = p.name;
   document.getElementById('rhMeta').textContent = (p.category||'')+(p.size?(' · مقاس '+p.size):'');
   document.getElementById('rhPrice').textContent = (+p.price).toFixed(2)+' ج.م';
+  return true;
 }
 function addToCart(p){
   const existing = cart.find(c=>c.id===p.id);
@@ -686,6 +753,7 @@ async function checkout(){
     await batch.commit();
     beep(660,0.15); setTimeout(()=>beep(990,0.15),150);
     toast('تمت عملية البيع بنجاح ✅','ok');
+    openInvoice(cart.slice(), total, auth.currentUser.email);
     clearCart();
     document.getElementById('recentHit').classList.remove('show');
   }catch(e){
@@ -795,6 +863,39 @@ async function removeCashierFromList(id){
   if(!confirm('هيتشال من القائمة بس، الحساب هيفضل شغال لحد ما تمسحه من Firebase Console. متأكد؟')) return;
   await db.collection('cashiers').doc(id).delete();
   toast('اتشال من القائمة','ok');
+}
+
+/* ---------------- invoice ---------------- */
+function openInvoice(items, total, cashierEmail){
+  const now = new Date();
+  document.getElementById('invMeta').textContent =
+    now.toLocaleString('ar-EG') + ' · الكاشير: ' + cashierEmail;
+  document.getElementById('invItems').innerHTML = items.map(c=>`
+    <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;">
+      <span>${c.name} <span class="mono" style="color:var(--ink-soft)">×${c.qty}</span></span>
+      <span class="mono">${(c.price*c.qty).toFixed(2)}</span>
+    </div>`).join('');
+  const count = items.reduce((s,c)=>s+c.qty,0);
+  document.getElementById('invCount').textContent = count;
+  document.getElementById('invTotal').textContent = total.toFixed(2);
+  document.getElementById('invoiceModal').classList.add('show');
+}
+function closeInvoice(){
+  document.getElementById('invoiceModal').classList.remove('show');
+}
+function printInvoice(){
+  const content = document.getElementById('invoicePrintArea').innerHTML;
+  const w = window.open('', '', 'width=380,height=600');
+  w.document.write(`
+    <html dir="rtl"><head><title>فاتورة ZCashier</title>
+    <style>
+      body{font-family:Arial,'Tahoma',sans-serif;padding:16px;color:#211F1B;}
+      .mono{direction:ltr;unicode-bidi:isolate;font-family:'Courier New',monospace;}
+    </style></head>
+    <body>${content}</body></html>`);
+  w.document.close();
+  w.onload = ()=>{ w.print(); };
+  setTimeout(()=>{ try{ w.print(); }catch(e){} }, 300);
 }
 </script>
 </body>
