@@ -392,7 +392,7 @@
           <span id="invDate"></span>
           <span id="invNo"></span>
         </div>
-        <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;">الكاشير: <span id="invCashier" class="mono" style="color:var(--ink)"></span></div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;">الكاشير: <span id="invCashier" style="color:var(--ink);font-weight:600;"></span></div>
 
         <div style="border-bottom:1px dashed var(--line);padding-bottom:10px;margin-bottom:10px;" id="invItems"></div>
         <div class="row-between"><span>عدد القطع</span><span class="mono" id="invCount">0</span></div>
@@ -434,22 +434,36 @@ const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
 
 // الإيميلات اللي ليها صلاحية كاملة (تبويب "الإدارة": تغيير الباسورد، إضافة كاشيرية، مشاهدة القائمة)
 const ADMIN_EMAILS = ['cashier@eg.com'];
+// اسم الأدمن اللي هيظهر بدل الإيميل — غيّره لاسمك
+const ADMIN_DISPLAY_NAME = "الأدمن";
 
 // اسم المحل اللي هيظهر في الفاتورة — غيّره لاسم محلك
-const STORE_NAME = "اسم المحل";
+const STORE_NAME = "ZCashier";
 
 /* ---------------- state ---------------- */
 let products = [];
 let cart = []; // {id, barcode, name, price, qty}
 let editingProductId = null;
 let html5QrCode = null;
+let cashierNameMap = {}; // email -> name (من مجموعة cashiers)
+let currentUserEmail = null;
+
+// بيرجع اسم الكاشير المسجل بدل الإيميل، لو مفيش اسم بيرجع الإيميل
+function displayNameFor(email){
+  if(!email) return '';
+  const e = email.toLowerCase();
+  if(cashierNameMap[e]) return cashierNameMap[e];
+  if(ADMIN_EMAILS.includes(e)) return ADMIN_DISPLAY_NAME;
+  return email;
+}
 
 /* ---------------- auth ---------------- */
 auth.onAuthStateChanged(user=>{
   if(user){
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('app').style.display='block';
-    document.getElementById('userEmail').textContent = user.email;
+    currentUserEmail = user.email;
+    document.getElementById('userEmail').textContent = displayNameFor(user.email);
 
     const isAdmin = ADMIN_EMAILS.includes((user.email||'').toLowerCase());
     const adminBtn = document.getElementById('adminTabBtn');
@@ -892,12 +906,23 @@ async function addCashier(){
 
 function listenCashiers(){
   db.collection('cashiers').orderBy('createdAt','desc').onSnapshot(snap=>{
+    // ابني خريطة إيميل -> اسم عشان نستخدمها في الهيدر والفواتير
+    cashierNameMap = {};
+    snap.docs.forEach(d=>{
+      const c = d.data();
+      if(c.email) cashierNameMap[c.email.toLowerCase()] = c.name;
+    });
+    // حدّث اسم المستخدم الظاهر فوق لو كان لسه شايل الإيميل بدل الاسم
+    if(currentUserEmail){
+      document.getElementById('userEmail').textContent = displayNameFor(currentUserEmail);
+    }
+
     const list = document.getElementById('cashiersList');
     if(!list) return;
     if(snap.empty){ list.innerHTML = '<div class="cart-empty">لسه مفيش كاشيرية مضافين من هنا</div>'; return; }
     list.innerHTML = snap.docs.map(d=>{
       const c = d.data();
-      return `<div class="sale-row">
+      return `<div class="sale-row" style="cursor:default;">
         <div>
           <div style="font-weight:600;font-size:13.5px">${c.name}</div>
           <div class="time mono">${c.email}</div>
@@ -920,7 +945,7 @@ function openInvoice(items, total, cashierEmail, dateObj, saleId){
   document.getElementById('invStoreName').textContent = STORE_NAME;
   document.getElementById('invDate').textContent = d.toLocaleString('ar-EG');
   document.getElementById('invNo').textContent = saleId ? ('فاتورة #'+saleId.slice(-6).toUpperCase()) : '';
-  document.getElementById('invCashier').textContent = cashierEmail || '';
+  document.getElementById('invCashier').textContent = displayNameFor(cashierEmail);
   document.getElementById('invItems').innerHTML = items.map(c=>`
     <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;">
       <span>${c.name} <span class="mono" style="color:var(--ink-soft)">×${c.qty}</span></span>
