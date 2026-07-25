@@ -232,6 +232,7 @@
     <button class="tabbtn" data-tab="products">المنتجات</button>
     <button class="tabbtn" data-tab="sales">المبيعات</button>
     <button class="tabbtn" data-tab="returns">المرتجعات</button>
+    <button class="tabbtn" data-tab="customers">العملاء</button>
     <button class="tabbtn" data-tab="analytics">التحليلات</button>
     <button class="tabbtn" data-tab="admin" id="adminTabBtn" style="display:none">الإدارة</button>
   </nav>
@@ -241,6 +242,14 @@
     <section id="tab-pos" class="tabpage active">
       <div class="pos-grid">
         <div class="scan-panel">
+          <div class="field" style="margin-bottom:16px">
+            <label>تليفون العميل (اختياري — عشان نعرف هل هو عميل عندنا)</label>
+            <div class="manual-row" style="margin-bottom:8px">
+              <input type="text" id="posCustomerPhone" placeholder="01xxxxxxxxx" inputmode="tel" oninput="onCustomerPhoneInput()">
+            </div>
+            <input type="text" id="posCustomerName" placeholder="اسم العميل (اختياري)" style="width:100%;padding:11px 12px;border:1px solid var(--line);border-radius:10px;background:#0D0C08;color:var(--ink);font-size:14px;">
+            <div id="customerHint" style="display:none;margin-top:10px;padding:10px 12px;border-radius:10px;border:1px dashed var(--line);font-size:12.5px;"></div>
+          </div>
           <button class="scan-btn" onclick="openScanner()">📷<br>امسح الباركود</button>
           <div class="scan-hint">وجّه كاميرا الموبايل ناحية الباركود، أو دخّله يدويًا تحت</div>
           <div class="manual-row">
@@ -315,6 +324,17 @@
       <div id="returnsList"></div>
     </section>
 
+    <!-- ---------- CUSTOMERS TAB ---------- -->
+    <section id="tab-customers" class="tabpage">
+      <div class="toolbar">
+        <input type="text" id="customerSearch" placeholder="دور برقم التليفون أو الاسم..." oninput="renderCustomersList()">
+      </div>
+      <div class="scan-hint" style="text-align:right;margin-bottom:14px">
+        البيانات دي بتتسجل أوتوماتيك أول ما تكتب رقم تليفون العميل في شاشة الكاشير وقت البيع.
+      </div>
+      <div id="customersList"></div>
+    </section>
+
     <!-- ---------- ANALYTICS TAB ---------- -->
     <section id="tab-analytics" class="tabpage">
       <div class="period-row">
@@ -351,8 +371,7 @@
       <h3 style="margin:20px 0 10px;font-size:15px">الكاشيرية المسجلين</h3>
       <div id="cashiersList"></div>
       <div class="scan-hint" style="text-align:right;margin-top:10px">
-        ملحوظة: زرار "حذف" هنا بيشيل الكاشير من القايمة بس. عشان تمنعه يدخل فعليًا لازم كمان تمسحه من
-        Firebase Console → Authentication → Users.
+        ملحوظة: زرار "منع الدخول" بيوقف الكاشير فورًا — لو كان داخل التطبيق هيتسجل خروجه لحظيًا، ولو حاول يدخل تاني بنفس الإيميل والباسورد هيتمنع. تقدر ترجّعه يدخل تاني بزرار "إعادة تفعيل" في أي وقت.
       </div>
     </section>
   </main>
@@ -450,6 +469,7 @@
           <span id="invNo"></span>
         </div>
         <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;">الكاشير: <span id="invCashier" style="color:var(--ink);font-weight:600;"></span></div>
+        <div id="invCustomerLine" style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;display:none;"></div>
 
         <div style="border-bottom:1px dashed var(--line);padding-bottom:10px;margin-bottom:10px;" id="invItems"></div>
         <div class="row-between"><span>عدد القطع</span><span class="mono" id="invCount">0</span></div>
@@ -504,6 +524,7 @@ let editingProductId = null;
 let html5QrCode = null;
 let cashierNameMap = {}; // email -> name (من مجموعة cashiers)
 let currentUserEmail = null;
+let myCashierUnsub = null; // listener بيراقب حالة حساب الكاشير الحالي عشان لو اتمنع يتسجل خروجه فورًا
 
 // بيرجع اسم الكاشير المسجل بدل الإيميل، لو مفيش اسم بيرجع الإيميل
 function displayNameFor(email){
@@ -515,14 +536,27 @@ function displayNameFor(email){
 }
 
 /* ---------------- auth ---------------- */
-auth.onAuthStateChanged(user=>{
+auth.onAuthStateChanged(async user=>{
   if(user){
+    const isAdmin = ADMIN_EMAILS.includes((user.email||'').toLowerCase());
+
+    // قبل ما نفتح التطبيق: لو الحساب ده كاشير عادي (مش أدمن)، نتأكد إنه مش متوقف عن الدخول
+    if(!isAdmin){
+      try{
+        const snap = await db.collection('cashiers').where('email','==', user.email).limit(1).get();
+        if(!snap.empty && snap.docs[0].data().disabled){
+          document.getElementById('loginErr').textContent = 'الحساب ده متوقف عن الدخول — كلم الأدمن';
+          await auth.signOut();
+          return;
+        }
+      }catch(e){ console.error(e); }
+    }
+
     document.getElementById('loginScreen').style.display='none';
     document.getElementById('app').style.display='block';
     currentUserEmail = user.email;
     document.getElementById('userEmail').textContent = displayNameFor(user.email);
 
-    const isAdmin = ADMIN_EMAILS.includes((user.email||'').toLowerCase());
     const adminBtn = document.getElementById('adminTabBtn');
     adminBtn.style.display = isAdmin ? '' : 'none';
     if(!isAdmin){
@@ -531,6 +565,16 @@ auth.onAuthStateChanged(user=>{
       document.querySelectorAll('.tabpage').forEach(p=>p.classList.remove('active'));
       document.querySelector('.tabbtn[data-tab="pos"]').classList.add('active');
       document.getElementById('tab-pos').classList.add('active');
+
+      // مراقبة لحظية: لو الأدمن منع الكاشير ده وهو شغال حاليًا، يتسجل خروجه فورًا
+      if(myCashierUnsub){ myCashierUnsub(); }
+      myCashierUnsub = db.collection('cashiers').where('email','==', user.email).limit(1)
+        .onSnapshot(snap=>{
+          if(!snap.empty && snap.docs[0].data().disabled){
+            toast('تم إيقاف حسابك بواسطة الأدمن','err');
+            auth.signOut();
+          }
+        });
     }
 
     listenProducts();
@@ -538,7 +582,9 @@ auth.onAuthStateChanged(user=>{
     listenCashiers();
     listenReturns();
     listenAnalyticsData();
+    listenCustomers();
   } else {
+    if(myCashierUnsub){ myCashierUnsub(); myCashierUnsub = null; }
     document.getElementById('loginScreen').style.display='flex';
     document.getElementById('app').style.display='none';
   }
@@ -843,12 +889,99 @@ function renderCart(){
   document.getElementById('cartTotal').textContent = total.toFixed(2);
 }
 
+/* =========================================================
+   ---------------- CUSTOMERS (العملاء) ----------------
+   ========================================================= */
+let customersCache = {}; // phone -> {phone,name,orderCount,totalSpent,lastOrderAt}
+let customersArr = [];
+
+// بيسيب أرقام بس من رقم التليفون (بيشيل مسافات، شرطات، إلخ)
+function normalizePhone(raw){
+  return (raw||'').replace(/[^0-9]/g,'');
+}
+
+function listenCustomers(){
+  db.collection('customers').onSnapshot(snap=>{
+    customersCache = {};
+    customersArr = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    customersArr.forEach(c=>{ customersCache[c.id] = c; });
+    renderCustomersList();
+    onCustomerPhoneInput(); // حدّث تلميح العميل في شاشة الكاشير لو فيه رقم مكتوب
+  });
+}
+
+// بيتنفذ كل ما الكاشير يكتب في خانة تليفون العميل في شاشة البيع
+function onCustomerPhoneInput(){
+  const raw = document.getElementById('posCustomerPhone')?.value || '';
+  const phone = normalizePhone(raw);
+  const hint = document.getElementById('customerHint');
+  if(!hint) return;
+  if(phone.length < 8){ hint.style.display='none'; return; }
+  const c = customersCache[phone];
+  hint.style.display='block';
+  if(c){
+    const last = c.lastOrderAt ? c.lastOrderAt.toDate().toLocaleDateString('ar-EG') : '—';
+    hint.style.borderColor = 'var(--accent)';
+    hint.style.borderStyle = 'solid';
+    hint.style.color = 'var(--teal)';
+    hint.innerHTML = `🌟 عميل عندنا${c.name?(' — '+c.name):''} · عدد الطلبات: ${c.orderCount||0} · آخر طلب: ${last}`;
+  } else {
+    hint.style.borderColor = 'var(--line)';
+    hint.style.borderStyle = 'dashed';
+    hint.style.color = 'var(--ink-soft)';
+    hint.textContent = '🆕 عميل جديد — أول مرة يشتري';
+  }
+}
+
+function resetCustomerField(){
+  const phoneEl = document.getElementById('posCustomerPhone');
+  const nameEl = document.getElementById('posCustomerName');
+  if(phoneEl) phoneEl.value='';
+  if(nameEl) nameEl.value='';
+  const hint = document.getElementById('customerHint');
+  if(hint) hint.style.display='none';
+}
+
+function renderCustomersList(){
+  const list = document.getElementById('customersList');
+  if(!list) return;
+  const q = (document.getElementById('customerSearch')?.value||'').trim().toLowerCase();
+  const qDigits = normalizePhone(q);
+  let arr = customersArr.slice().sort((a,b)=>{
+    const ta = a.lastOrderAt ? a.lastOrderAt.toMillis() : 0;
+    const tb = b.lastOrderAt ? b.lastOrderAt.toMillis() : 0;
+    return tb - ta;
+  });
+  if(q){
+    arr = arr.filter(c => (c.name||'').toLowerCase().includes(q) || (qDigits && c.id.includes(qDigits)));
+  }
+  if(arr.length===0){
+    list.innerHTML = `<div class="cart-empty">${q ? 'مفيش عملاء مطابقين' : 'لسه مفيش عملاء متسجلين'}</div>`;
+    return;
+  }
+  list.innerHTML = arr.map(c=>{
+    const last = c.lastOrderAt ? c.lastOrderAt.toDate().toLocaleString('ar-EG') : '—';
+    return `<div class="sale-row" style="cursor:default;">
+      <div>
+        <div style="font-weight:600;font-size:13.5px">${c.name || 'عميل بدون اسم'} <span class="mono" style="color:var(--ink-soft);font-size:11.5px">#${c.id}</span></div>
+        <div class="time">عدد الطلبات: ${c.orderCount||0} · آخر طلب: ${last}</div>
+      </div>
+      <div class="amt">${(c.totalSpent||0).toFixed(2)} ج.م</div>
+    </div>`;
+  }).join('');
+}
+
 /* ---------------- checkout ---------------- */
 async function checkout(){
   if(cart.length===0) return;
   const total = cart.reduce((s,c)=>s+c.qty*c.price,0);
   const checkoutBtn = document.getElementById('checkoutBtn');
   checkoutBtn.disabled = true; checkoutBtn.textContent = 'جاري الحفظ...';
+
+  const customerPhone = normalizePhone(document.getElementById('posCustomerPhone')?.value || '');
+  const customerName = (document.getElementById('posCustomerName')?.value || '').trim();
+  const hasCustomer = customerPhone.length >= 8;
+
   try{
     const batch = db.batch();
     const saleRef = db.collection('sales').doc();
@@ -856,6 +989,8 @@ async function checkout(){
       items: cart.map(c=>({productId:c.id, barcode:c.barcode, name:c.name, price:c.price, qty:c.qty})),
       total,
       cashier: auth.currentUser.email,
+      customerPhone: hasCustomer ? customerPhone : null,
+      customerName: hasCustomer && customerName ? customerName : null,
       createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     cart.forEach(c=>{
@@ -863,11 +998,25 @@ async function checkout(){
       const newStock = Math.max(0,(p?.stock||0)-c.qty);
       batch.update(db.collection('products').doc(c.id), {stock:newStock});
     });
+    if(hasCustomer){
+      // نحدّث/ننشئ ملف العميل: نزود عدد الطلبات والمبلغ الكلي ونسجل آخر طلب
+      const custRef = db.collection('customers').doc(customerPhone);
+      const custData = {
+        phone: customerPhone,
+        orderCount: firebase.firestore.FieldValue.increment(1),
+        totalSpent: firebase.firestore.FieldValue.increment(total),
+        lastOrderAt: firebase.firestore.FieldValue.serverTimestamp(),
+        lastOrderTotal: total
+      };
+      if(customerName) custData.name = customerName;
+      batch.set(custRef, custData, {merge:true});
+    }
     await batch.commit();
     beep(660,0.15); setTimeout(()=>beep(990,0.15),150);
     toast('تمت عملية البيع بنجاح ✅','ok');
-    openInvoice(cart.slice(), total, auth.currentUser.email, new Date(), saleRef.id);
+    openInvoice(cart.slice(), total, auth.currentUser.email, new Date(), saleRef.id, customerName, customerPhone);
     clearCart();
+    resetCustomerField();
     document.getElementById('recentHit').classList.remove('show');
   }catch(e){
     console.error(e); toast('حصل خطأ أثناء إتمام البيع','err');
@@ -929,7 +1078,7 @@ function openSaleInvoice(id){
   const s = salesCache.find(x=>x.id===id);
   if(!s) return;
   const dateObj = s.createdAt ? s.createdAt.toDate() : new Date();
-  openInvoice(s.items, s.total, s.cashier, dateObj, s.id);
+  openInvoice(s.items, s.total, s.cashier, dateObj, s.id, s.customerName, s.customerPhone);
 }
 
 /* ---------------- change my own password ---------------- */
@@ -970,7 +1119,7 @@ async function addCashier(){
     await secondaryApp.auth().createUserWithEmailAndPassword(email, pass);
     await secondaryApp.auth().signOut();
     await db.collection('cashiers').add({
-      name, email, createdAt: firebase.firestore.FieldValue.serverTimestamp()
+      name, email, disabled:false, createdAt: firebase.firestore.FieldValue.serverTimestamp()
     });
     document.getElementById('newCashierName').value = '';
     document.getElementById('newCashierEmail').value = '';
@@ -1002,30 +1151,44 @@ function listenCashiers(){
     if(snap.empty){ list.innerHTML = '<div class="cart-empty">لسه مفيش كاشيرية مضافين من هنا</div>'; return; }
     list.innerHTML = snap.docs.map(d=>{
       const c = d.data();
+      const disabled = !!c.disabled;
       return `<div class="sale-row" style="cursor:default;">
         <div>
-          <div style="font-weight:600;font-size:13.5px">${c.name}</div>
+          <div style="font-weight:600;font-size:13.5px">${c.name} ${disabled?'<span style="color:var(--danger);font-size:11px">(متوقف عن الدخول)</span>':''}</div>
           <div class="time mono">${c.email}</div>
         </div>
-        <button class="ci-remove" onclick="removeCashierFromList('${d.id}')">حذف من القائمة</button>
+        ${disabled
+          ? `<button class="gen-btn" onclick="toggleCashierDisabled('${d.id}',false)">إعادة تفعيل</button>`
+          : `<button class="ci-remove" onclick="toggleCashierDisabled('${d.id}',true)">منع الدخول</button>`
+        }
       </div>`;
     }).join('');
   });
 }
 
-async function removeCashierFromList(id){
-  if(!confirm('هيتشال من القائمة بس، الحساب هيفضل شغال لحد ما تمسحه من Firebase Console. متأكد؟')) return;
-  await db.collection('cashiers').doc(id).delete();
-  toast('اتشال من القائمة','ok');
+async function toggleCashierDisabled(id, disable){
+  const msg = disable
+    ? 'هيتمنع الكاشير ده من الدخول فورًا (لو داخل حاليًا هيتسجل خروجه على طول). متأكد؟'
+    : 'هيقدر الكاشير ده يدخل تاني بنفس بياناته. متأكد؟';
+  if(!confirm(msg)) return;
+  await db.collection('cashiers').doc(id).update({disabled: disable});
+  toast(disable ? 'اتمنع الكاشير من الدخول ✅' : 'اتفعّل الكاشير تاني ✅', 'ok');
 }
 
 /* ---------------- invoice ---------------- */
-function openInvoice(items, total, cashierEmail, dateObj, saleId){
+function openInvoice(items, total, cashierEmail, dateObj, saleId, customerName, customerPhone){
   const d = dateObj || new Date();
   document.getElementById('invStoreName').textContent = STORE_NAME;
   document.getElementById('invDate').textContent = d.toLocaleString('ar-EG');
   document.getElementById('invNo').textContent = saleId ? ('فاتورة #'+saleId.slice(-6).toUpperCase()) : '';
   document.getElementById('invCashier').textContent = displayNameFor(cashierEmail);
+  const custLine = document.getElementById('invCustomerLine');
+  if(customerPhone){
+    custLine.style.display = 'block';
+    custLine.textContent = 'العميل: ' + (customerName ? (customerName+' — ') : '') + customerPhone;
+  } else {
+    custLine.style.display = 'none';
+  }
   document.getElementById('invItems').innerHTML = items.map(c=>`
     <div style="display:flex;justify-content:space-between;font-size:13px;padding:4px 0;">
       <span>${c.name} <span class="mono" style="color:var(--ink-soft)">×${c.qty}</span></span>
