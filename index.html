@@ -140,6 +140,10 @@
   .sale-row .time{font-size:11.5px;color:var(--ink-soft);}
   .sale-row .items{font-size:12.5px;color:var(--ink-soft);margin-top:2px;}
   .sale-row .amt{font-family:'IBM Plex Mono',monospace;font-weight:700;direction:ltr;color:var(--teal);}
+  .pay-tag{display:inline-block;font-size:10px;padding:1px 7px;border-radius:20px;margin-inline-start:6px;border:1px solid var(--line);color:var(--ink-soft);}
+  .pay-tag.cash{color:var(--teal);border-color:var(--teal);}
+  .pay-tag.visa{color:#8FB8FF;border-color:#8FB8FF;}
+  .pay-tag.wallet{color:#D98FFF;border-color:#D98FFF;}
 
   /* ---------- Modal ---------- */
   .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,0.7);z-index:50;align-items:center;justify-content:center;padding:16px;}
@@ -174,6 +178,16 @@
   .period-btn.active{background:var(--accent);color:#161207;border-color:var(--accent);}
   .ret-chk-row{display:flex;align-items:flex-start;gap:8px;}
   .ret-chk-row input[type=checkbox]{margin-top:3px;width:16px;height:16px;accent-color:var(--accent);}
+
+  /* ---------- Shift tab ---------- */
+  .shift-hero{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:20px;box-shadow:var(--shadow);margin-bottom:16px;}
+  .shift-hero .since{font-size:12px;color:var(--ink-soft);margin-bottom:14px;}
+  .pay-breakdown{display:flex;flex-direction:column;gap:8px;margin-bottom:14px;}
+  .pay-row{display:flex;justify-content:space-between;align-items:center;font-size:13.5px;padding:10px 12px;border:1px dashed var(--line);border-radius:10px;}
+  .pay-row .lbl{display:flex;align-items:center;gap:8px;color:var(--ink-soft);}
+  .pay-row .dotc{width:9px;height:9px;border-radius:50%;}
+  .close-shift-btn{width:100%;background:var(--accent);color:#161207;padding:14px;border-radius:12px;font-weight:700;font-size:15px;margin-top:6px;}
+  .close-shift-btn:disabled{opacity:0.45;}
 
   ::-webkit-scrollbar{width:6px;}
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;}
@@ -229,11 +243,12 @@
 
   <nav>
     <button class="tabbtn active" data-tab="pos">الكاشير</button>
-    <button class="tabbtn" data-tab="products">المنتجات</button>
     <button class="tabbtn" data-tab="sales">المبيعات</button>
     <button class="tabbtn" data-tab="returns">المرتجعات</button>
+    <button class="tabbtn" data-tab="shift">الشيفت</button>
+    <button class="tabbtn" data-tab="products">المنتجات</button>
     <button class="tabbtn" data-tab="customers">العملاء</button>
-    <button class="tabbtn" data-tab="analytics">التحليلات</button>
+    <button class="tabbtn" data-tab="analytics" id="analyticsTabBtn">التحليلات</button>
     <button class="tabbtn" data-tab="admin" id="adminTabBtn" style="display:none">الإدارة</button>
   </nav>
 
@@ -270,6 +285,14 @@
           <div class="receipt-foot">
             <div class="row-between"><span>عدد القطع</span><span class="mono" id="cartCount">0</span></div>
             <div class="row-total"><span>الإجمالي</span><span class="mono" id="cartTotal">0.00</span></div>
+            <div class="field" style="margin-bottom:12px">
+              <label>طريقة الدفع</label>
+              <div class="period-row" id="paymentMethodRow" style="margin-bottom:0">
+                <button type="button" class="period-btn active" data-method="cash" onclick="setPaymentMethod('cash')">كاش</button>
+                <button type="button" class="period-btn" data-method="visa" onclick="setPaymentMethod('visa')">فيزا</button>
+                <button type="button" class="period-btn" data-method="wallet" onclick="setPaymentMethod('wallet')">محفظة إلكترونية</button>
+              </div>
+            </div>
             <button class="checkout-btn" id="checkoutBtn" disabled onclick="checkout()">إتمام البيع</button>
             <button class="clear-btn" onclick="clearCart()">تفريغ السلة</button>
           </div>
@@ -281,7 +304,7 @@
     <section id="tab-products" class="tabpage">
       <div class="toolbar">
         <input type="text" id="productSearch" placeholder="دور بالاسم أو الباركود..." oninput="renderProducts()">
-        <button class="btn-add" onclick="openProductForm()">+ منتج جديد</button>
+        <button class="btn-add" id="addProductBtn" onclick="openProductForm()">+ منتج جديد</button>
       </div>
       <div class="product-grid" id="productGrid"></div>
     </section>
@@ -292,6 +315,7 @@
         <div class="sum-card"><div class="label">مبيعات النهاردة</div><div class="val mono" id="todayTotal">0.00</div></div>
         <div class="sum-card"><div class="label">عدد الفواتير</div><div class="val mono" id="todayCount">0</div></div>
       </div>
+      <div class="scan-hint" id="salesScopeHint" style="display:none;text-align:right;margin-bottom:12px"></div>
       <div class="toolbar">
         <input type="text" id="salesSearch" placeholder="دور برقم الفاتورة أو اسم منتج..." oninput="renderSalesList()">
       </div>
@@ -322,6 +346,26 @@
 
       <h3 style="margin:20px 0 10px;font-size:15px">آخر المرتجعات</h3>
       <div id="returnsList"></div>
+    </section>
+
+    <!-- ---------- SHIFT TAB ---------- -->
+    <section id="tab-shift" class="tabpage">
+      <div class="shift-hero">
+        <h3 style="margin:0 0 4px">شيفتك الحالي</h3>
+        <div class="since" id="shiftSinceLabel">شغال من...</div>
+        <div class="pay-breakdown">
+          <div class="pay-row"><span class="lbl"><span class="dotc" style="background:var(--teal)"></span>كاش</span><span class="mono" id="shiftCash">0.00</span></div>
+          <div class="pay-row"><span class="lbl"><span class="dotc" style="background:#8FB8FF"></span>فيزا</span><span class="mono" id="shiftVisa">0.00</span></div>
+          <div class="pay-row"><span class="lbl"><span class="dotc" style="background:#D98FFF"></span>محفظة إلكترونية</span><span class="mono" id="shiftWallet">0.00</span></div>
+        </div>
+        <div class="row-between"><span>عدد الفواتير</span><span class="mono" id="shiftInvCount">0</span></div>
+        <div class="row-between"><span>إجمالي المبيعات</span><span class="mono" id="shiftGross">0.00</span></div>
+        <div class="row-between"><span>إجمالي المرتجعات</span><span class="mono" id="shiftReturns">0.00</span></div>
+        <div class="row-total"><span>صافي الشيفت</span><span class="mono" id="shiftNet">0.00</span></div>
+        <button class="close-shift-btn" id="closeShiftBtn" onclick="closeShift()">قفل الشيفت وطباعة التقرير</button>
+      </div>
+      <h3 style="margin:20px 0 10px;font-size:15px">آخر الشيفتات المقفولة</h3>
+      <div id="shiftHistoryList"></div>
     </section>
 
     <!-- ---------- CUSTOMERS TAB ---------- -->
@@ -468,7 +512,8 @@
           <span id="invDate"></span>
           <span id="invNo"></span>
         </div>
-        <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;">الكاشير: <span id="invCashier" style="color:var(--ink);font-weight:600;"></span></div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">الكاشير: <span id="invCashier" style="color:var(--ink);font-weight:600;"></span></div>
+        <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;">طريقة الدفع: <span id="invPayMethod" style="color:var(--ink);font-weight:600;"></span></div>
         <div id="invCustomerLine" style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;display:none;"></div>
 
         <div style="border-bottom:1px dashed var(--line);padding-bottom:10px;margin-bottom:10px;" id="invItems"></div>
@@ -481,6 +526,38 @@
     <div class="modal-actions" style="padding:0 22px 22px;margin-top:8px;position:relative;z-index:2;">
       <button class="save" onclick="printInvoice()">طباعة الفاتورة</button>
       <button class="cancel" onclick="closeInvoice()">إغلاق</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SHIFT REPORT MODAL ============ -->
+<div class="modal-overlay" id="shiftReportModal">
+  <div class="modal" style="max-width:380px;padding:0;overflow:hidden;position:relative;">
+    <div class="modal-top" style="padding:14px 18px 0;margin-bottom:0;">
+      <h3 style="margin:0;font-size:15px;color:var(--ink-soft);">تقرير الشيفت</h3>
+      <button onclick="closeShiftReport()">✕</button>
+    </div>
+    <div id="shiftReportPrintArea" style="padding:10px 22px 20px;">
+      <div style="text-align:center;margin-bottom:14px;">
+        <div id="srStoreName" style="font-family:'Cairo',sans-serif;font-weight:800;font-size:20px;color:var(--accent);">اسم المحل</div>
+        <div style="font-size:10.5px;color:var(--ink-soft);letter-spacing:1px;margin-top:2px;">تقرير إقفال شيفت</div>
+      </div>
+      <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">الكاشير: <span id="srCashier" style="color:var(--ink);font-weight:600;"></span></div>
+      <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;">من: <span id="srFrom" class="mono" style="color:var(--ink);"></span></div>
+      <div style="font-size:11.5px;color:var(--ink-soft);margin-bottom:10px;">إلى: <span id="srTo" class="mono" style="color:var(--ink);"></span></div>
+      <div style="border-top:1px dashed var(--line);border-bottom:1px dashed var(--line);padding:10px 0;margin-bottom:10px;">
+        <div class="row-between"><span>كاش</span><span class="mono" id="srCash">0.00</span></div>
+        <div class="row-between"><span>فيزا</span><span class="mono" id="srVisa">0.00</span></div>
+        <div class="row-between"><span>محفظة إلكترونية</span><span class="mono" id="srWallet">0.00</span></div>
+      </div>
+      <div class="row-between"><span>عدد الفواتير</span><span class="mono" id="srCount">0</span></div>
+      <div class="row-between"><span>إجمالي المبيعات</span><span class="mono" id="srGross">0.00</span></div>
+      <div class="row-between"><span>إجمالي المرتجعات</span><span class="mono" id="srReturns">0.00</span></div>
+      <div class="row-total"><span>الصافي</span><span class="mono" id="srNet">0.00</span></div>
+    </div>
+    <div class="modal-actions" style="padding:0 22px 22px;">
+      <button class="save" onclick="printShiftReport()">طباعة التقرير</button>
+      <button class="cancel" onclick="closeShiftReport()">إغلاق</button>
     </div>
   </div>
 </div>
@@ -509,7 +586,7 @@ auth.setPersistence(firebase.auth.Auth.Persistence.LOCAL);
 // من غير ما يسجّل خروج الأدمن اللي داخل حاليًا
 const secondaryApp = firebase.initializeApp(firebaseConfig, "Secondary");
 
-// الإيميلات اللي ليها صلاحية كاملة (تبويب "الإدارة": تغيير الباسورد، إضافة كاشيرية، مشاهدة القائمة)
+// الإيميلات اللي ليها صلاحية كاملة (تبويب "الإدارة": تغيير الباسورد، إضافة كاشيرية، مشاهدة القائمة، التحليلات الكاملة)
 const ADMIN_EMAILS = ['cashier@eg.com'];
 // اسم الأدمن اللي هيظهر بدل الإيميل — غيّره لاسمك
 const ADMIN_DISPLAY_NAME = "الأدمن";
@@ -524,7 +601,12 @@ let editingProductId = null;
 let html5QrCode = null;
 let cashierNameMap = {}; // email -> name (من مجموعة cashiers)
 let currentUserEmail = null;
+let isCurrentUserAdmin = false; // هل المستخدم الحالي أدمن ولا كاشير عادي
 let myCashierUnsub = null; // listener بيراقب حالة حساب الكاشير الحالي عشان لو اتمنع يتسجل خروجه فورًا
+let paymentMethod = 'cash'; // طريقة الدفع المختارة حاليًا في شاشة الكاشير
+
+const PAY_LABELS = {cash:'كاش', visa:'فيزا', wallet:'محفظة إلكترونية'};
+function paymentLabel(m){ return PAY_LABELS[m] || 'كاش'; }
 
 // بيرجع اسم الكاشير المسجل بدل الإيميل، لو مفيش اسم بيرجع الإيميل
 function displayNameFor(email){
@@ -539,11 +621,12 @@ function displayNameFor(email){
 auth.onAuthStateChanged(async user=>{
   if(user){
     const isAdmin = ADMIN_EMAILS.includes((user.email||'').toLowerCase());
+    isCurrentUserAdmin = isAdmin;
 
     // قبل ما نفتح التطبيق: لو الحساب ده كاشير عادي (مش أدمن)، نتأكد إنه مش متوقف عن الدخول
     if(!isAdmin){
       try{
-        const snap = await db.collection('cashiers').where('email','==', user.email).limit(1).get();
+        const snap = await db.collection('cashiers').where('email','==', user.email.toLowerCase()).limit(1).get();
         if(!snap.empty && snap.docs[0].data().disabled){
           document.getElementById('loginErr').textContent = 'الحساب ده متوقف عن الدخول — كلم الأدمن';
           await auth.signOut();
@@ -557,10 +640,14 @@ auth.onAuthStateChanged(async user=>{
     currentUserEmail = user.email;
     document.getElementById('userEmail').textContent = displayNameFor(user.email);
 
-    const adminBtn = document.getElementById('adminTabBtn');
-    adminBtn.style.display = isAdmin ? '' : 'none';
+    // تبويبات مقفولة على الأدمن بس: الإدارة والتحليلات الكاملة
+    document.getElementById('adminTabBtn').style.display = isAdmin ? '' : 'none';
+    document.getElementById('analyticsTabBtn').style.display = isAdmin ? '' : 'none';
+    // الكاشير العادي يشوف المنتجات بس من غير إضافة/تعديل/حذف
+    document.getElementById('addProductBtn').style.display = isAdmin ? '' : 'none';
+
     if(!isAdmin){
-      // لو كاشير عادي، نتأكد إنه واقف على تبويب الكاشير مش الإدارة
+      // لو كاشير عادي، نتأكد إنه واقف على تبويب الكاشير مش تبويب مقفول عليه
       document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('active'));
       document.querySelectorAll('.tabpage').forEach(p=>p.classList.remove('active'));
       document.querySelector('.tabbtn[data-tab="pos"]').classList.add('active');
@@ -568,7 +655,7 @@ auth.onAuthStateChanged(async user=>{
 
       // مراقبة لحظية: لو الأدمن منع الكاشير ده وهو شغال حاليًا، يتسجل خروجه فورًا
       if(myCashierUnsub){ myCashierUnsub(); }
-      myCashierUnsub = db.collection('cashiers').where('email','==', user.email).limit(1)
+      myCashierUnsub = db.collection('cashiers').where('email','==', user.email.toLowerCase()).limit(1)
         .onSnapshot(snap=>{
           if(!snap.empty && snap.docs[0].data().disabled){
             toast('تم إيقاف حسابك بواسطة الأدمن','err');
@@ -583,6 +670,7 @@ auth.onAuthStateChanged(async user=>{
     listenReturns();
     listenAnalyticsData();
     listenCustomers();
+    listenMyShifts();
   } else {
     if(myCashierUnsub){ myCashierUnsub(); myCashierUnsub = null; }
     document.getElementById('loginScreen').style.display='flex';
@@ -610,6 +698,7 @@ document.querySelectorAll('.tabbtn').forEach(btn=>{
     document.querySelectorAll('.tabpage').forEach(p=>p.classList.remove('active'));
     btn.classList.add('active');
     document.getElementById('tab-'+btn.dataset.tab).classList.add('active');
+    if(btn.dataset.tab==='shift') renderShiftTab();
   });
 });
 
@@ -671,16 +760,18 @@ function renderProducts(){
       <div class="p-barcode mono">#${p.barcode||'—'}</div>
       <div class="p-price">${(+p.price).toFixed(2)} ج.م</div>
       <div class="p-stock">المخزون: ${p.stock ?? 0} ${p.size?('· مقاس '+p.size):''} ${p.color?('· '+p.color):''}</div>
+      ${isCurrentUserAdmin ? `
       <div class="p-actions">
         <button onclick='editProduct("${p.id}")'>تعديل</button>
         <button onclick='openLabelForExisting("${p.id}")'>ملصق</button>
         <button class="del" onclick='deleteProduct("${p.id}")'>حذف</button>
-      </div>
+      </div>` : ''}
     </div>`).join('');
 }
 
 /* ---------------- product form ---------------- */
 function openProductForm(){
+  if(!isCurrentUserAdmin) return;
   editingProductId = null;
   document.getElementById('pmTitle').textContent = 'منتج جديد';
   ['pfName','pfCategory','pfPrice','pfSize','pfColor','pfStock','pfBarcode'].forEach(id=>document.getElementById(id).value='');
@@ -688,6 +779,7 @@ function openProductForm(){
   document.getElementById('productModal').classList.add('show');
 }
 function editProduct(id){
+  if(!isCurrentUserAdmin) return;
   const p = products.find(x=>x.id===id);
   if(!p) return;
   editingProductId = id;
@@ -710,6 +802,7 @@ function generateBarcodeField(){
 }
 
 async function saveProduct(){
+  if(!isCurrentUserAdmin){ toast('مسموح للأدمن بس يعدّل المنتجات','err'); return; }
   const name = document.getElementById('pfName').value.trim();
   const category = document.getElementById('pfCategory').value.trim();
   const price = parseFloat(document.getElementById('pfPrice').value);
@@ -742,6 +835,7 @@ async function saveProduct(){
 }
 
 async function deleteProduct(id){
+  if(!isCurrentUserAdmin){ toast('مسموح للأدمن بس يمسح منتجات','err'); return; }
   if(!confirm('متأكد إنك عايز تمسح المنتج ده؟')) return;
   await db.collection('products').doc(id).delete();
   toast('اتمسح المنتج','ok');
@@ -755,6 +849,7 @@ function showLabelPreview(barcode, name, price){
   JsBarcode("#barcodeSvg", barcode, {format:"CODE128", width:2, height:55, displayValue:true, fontSize:13, margin:6});
 }
 function openLabelForExisting(id){
+  if(!isCurrentUserAdmin) return;
   const p = products.find(x=>x.id===id);
   if(!p) return;
   editingProductId = id;
@@ -859,6 +954,11 @@ function changeQty(id, delta){
 }
 function removeItem(id){ cart = cart.filter(c=>c.id!==id); renderCart(); }
 function clearCart(){ cart = []; renderCart(); }
+
+function setPaymentMethod(m){
+  paymentMethod = m;
+  document.querySelectorAll('#paymentMethodRow .period-btn').forEach(b=>b.classList.toggle('active', b.dataset.method===m));
+}
 
 function renderCart(){
   const body = document.getElementById('cartBody');
@@ -981,6 +1081,7 @@ async function checkout(){
   const customerPhone = normalizePhone(document.getElementById('posCustomerPhone')?.value || '');
   const customerName = (document.getElementById('posCustomerName')?.value || '').trim();
   const hasCustomer = customerPhone.length >= 8;
+  const chosenPayment = paymentMethod;
 
   try{
     const batch = db.batch();
@@ -988,6 +1089,7 @@ async function checkout(){
     batch.set(saleRef, {
       items: cart.map(c=>({productId:c.id, barcode:c.barcode, name:c.name, price:c.price, qty:c.qty})),
       total,
+      paymentMethod: chosenPayment,
       cashier: auth.currentUser.email,
       customerPhone: hasCustomer ? customerPhone : null,
       customerName: hasCustomer && customerName ? customerName : null,
@@ -1014,9 +1116,10 @@ async function checkout(){
     await batch.commit();
     beep(660,0.15); setTimeout(()=>beep(990,0.15),150);
     toast('تمت عملية البيع بنجاح ✅','ok');
-    openInvoice(cart.slice(), total, auth.currentUser.email, new Date(), saleRef.id, customerName, customerPhone);
+    openInvoice(cart.slice(), total, auth.currentUser.email, new Date(), saleRef.id, customerName, customerPhone, chosenPayment);
     clearCart();
     resetCustomerField();
+    setPaymentMethod('cash');
     document.getElementById('recentHit').classList.remove('show');
   }catch(e){
     console.error(e); toast('حصل خطأ أثناء إتمام البيع','err');
@@ -1041,11 +1144,25 @@ function listenSalesToday(){
 }
 
 // بيفلتر قايمة المبيعات برقم الفاتورة أو باسم منتج جوه الفاتورة
+// الكاشير العادي يشوف فواتير النهاردة بس (من كل الكاشيرية)، الأدمن يشوف آخر 100 فاتورة بغض النظر عن التاريخ
 function renderSalesList(){
   const list = document.getElementById('salesList');
   if(!list) return;
+  const hint = document.getElementById('salesScopeHint');
+  if(hint){
+    if(!isCurrentUserAdmin){
+      hint.style.display='block';
+      hint.textContent = 'بتعرض فواتير النهاردة بس (كل الكاشيرية).';
+    } else {
+      hint.style.display='none';
+    }
+  }
   const q = (document.getElementById('salesSearch')?.value||'').trim().toUpperCase();
   let sales = salesCache;
+  if(!isCurrentUserAdmin){
+    const startOfDay = new Date(); startOfDay.setHours(0,0,0,0);
+    sales = sales.filter(s=>s.createdAt && s.createdAt.toDate() >= startOfDay);
+  }
   if(q){
     sales = sales.filter(s=>{
       const invNo = s.id.slice(-6).toUpperCase();
@@ -1061,9 +1178,10 @@ function renderSalesList(){
   list.innerHTML = sales.map(s=>{
     const time = s.createdAt ? s.createdAt.toDate().toLocaleString('ar-EG') : '...';
     const itemsSummary = s.items.map(i=>i.name+' ×'+i.qty).join('، ');
+    const pm = s.paymentMethod || 'cash';
     return `<div class="sale-row" onclick="openSaleInvoice('${s.id}')">
       <div>
-        <div class="time">فاتورة #${s.id.slice(-6).toUpperCase()} — ${time}</div>
+        <div class="time">فاتورة #${s.id.slice(-6).toUpperCase()} — ${time} <span class="pay-tag ${pm}">${paymentLabel(pm)}</span></div>
         <div class="items">${itemsSummary}</div>
       </div>
       <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
@@ -1078,7 +1196,7 @@ function openSaleInvoice(id){
   const s = salesCache.find(x=>x.id===id);
   if(!s) return;
   const dateObj = s.createdAt ? s.createdAt.toDate() : new Date();
-  openInvoice(s.items, s.total, s.cashier, dateObj, s.id, s.customerName, s.customerPhone);
+  openInvoice(s.items, s.total, s.cashier, dateObj, s.id, s.customerName, s.customerPhone, s.paymentMethod||'cash');
 }
 
 /* ---------------- change my own password ---------------- */
@@ -1110,7 +1228,7 @@ async function changeMyPassword(){
 /* ---------------- add / list cashiers ---------------- */
 async function addCashier(){
   const name = document.getElementById('newCashierName').value.trim();
-  const email = document.getElementById('newCashierEmail').value.trim();
+  const email = document.getElementById('newCashierEmail').value.trim().toLowerCase();
   const pass = document.getElementById('newCashierPass').value;
   if(!name || !email || !pass){ toast('املأ كل الخانات','err'); return; }
   if(pass.length < 6){ toast('كلمة المرور لازم تكون 6 حروف/أرقام على الأقل','err'); return; }
@@ -1176,12 +1294,13 @@ async function toggleCashierDisabled(id, disable){
 }
 
 /* ---------------- invoice ---------------- */
-function openInvoice(items, total, cashierEmail, dateObj, saleId, customerName, customerPhone){
+function openInvoice(items, total, cashierEmail, dateObj, saleId, customerName, customerPhone, payMethod){
   const d = dateObj || new Date();
   document.getElementById('invStoreName').textContent = STORE_NAME;
   document.getElementById('invDate').textContent = d.toLocaleString('ar-EG');
   document.getElementById('invNo').textContent = saleId ? ('فاتورة #'+saleId.slice(-6).toUpperCase()) : '';
   document.getElementById('invCashier').textContent = displayNameFor(cashierEmail);
+  document.getElementById('invPayMethod').textContent = paymentLabel(payMethod||'cash');
   const custLine = document.getElementById('invCustomerLine');
   if(customerPhone){
     custLine.style.display = 'block';
@@ -1372,27 +1491,163 @@ async function submitReturn(){
 }
 
 /* =========================================================
-   ---------------- ANALYTICS (التحليلات) ----------------
+   ---------------- SHIFT (الشيفت) ----------------
+   ========================================================= */
+let myShiftsCache = []; // كل الشيفتات المقفولة بتاعت الكاشير الحالي (بيتفلتروا بالإيميل من فايرستور)
+let lastClosedShiftReport = null; // آخر تقرير شيفت اتقفل، عشان نطبعه بعدين
+
+function listenMyShifts(){
+  if(!currentUserEmail) return;
+  db.collection('shifts').where('cashier','==', currentUserEmail)
+    .onSnapshot(snap=>{
+      myShiftsCache = snap.docs.map(d=>({id:d.id, ...d.data()}))
+        .filter(s=>s.closedAt)
+        .sort((a,b)=> b.closedAt.toMillis() - a.closedAt.toMillis());
+      renderShiftHistory();
+      renderShiftTab();
+    }, err=>{ console.error(err); });
+}
+
+// وقت بداية الشيفت الحالي: من آخر إقفال شيفت للكاشير ده، أو من بداية اليوم لو مفيش
+function getShiftStart(){
+  const startOfToday = new Date(); startOfToday.setHours(0,0,0,0);
+  if(myShiftsCache.length > 0){
+    const lastClose = myShiftsCache[0].closedAt.toDate();
+    return lastClose > startOfToday ? lastClose : startOfToday;
+  }
+  return startOfToday;
+}
+
+function computeOpenShiftData(){
+  const shiftStart = getShiftStart();
+  const mySales = allSalesAnalytics.filter(s=> s.cashier===currentUserEmail && s.createdAt && s.createdAt.toDate() >= shiftStart);
+  const myReturns = allReturnsAnalytics.filter(r=> r.cashier===currentUserEmail && r.createdAt && r.createdAt.toDate() >= shiftStart);
+  const totals = {cash:0, visa:0, wallet:0};
+  mySales.forEach(s=>{ const m = s.paymentMethod || 'cash'; totals[m] = (totals[m]||0) + (s.total||0); });
+  const returnsTotal = myReturns.reduce((s,r)=>s+(r.total||0),0);
+  const grossTotal = totals.cash + totals.visa + totals.wallet;
+  const netTotal = grossTotal - returnsTotal;
+  return {shiftStart, mySales, myReturns, totals, returnsTotal, grossTotal, netTotal};
+}
+
+function renderShiftTab(){
+  const el = document.getElementById('shiftSinceLabel');
+  if(!el) return; // التبويب لسه ما اتحمّلش
+  const data = computeOpenShiftData();
+  el.textContent = 'شغال من: ' + data.shiftStart.toLocaleString('ar-EG');
+  document.getElementById('shiftCash').textContent = data.totals.cash.toFixed(2);
+  document.getElementById('shiftVisa').textContent = data.totals.visa.toFixed(2);
+  document.getElementById('shiftWallet').textContent = data.totals.wallet.toFixed(2);
+  document.getElementById('shiftInvCount').textContent = data.mySales.length;
+  document.getElementById('shiftGross').textContent = data.grossTotal.toFixed(2);
+  document.getElementById('shiftReturns').textContent = data.returnsTotal.toFixed(2);
+  document.getElementById('shiftNet').textContent = data.netTotal.toFixed(2);
+  document.getElementById('closeShiftBtn').disabled = (data.mySales.length===0 && data.myReturns.length===0);
+}
+
+function renderShiftHistory(){
+  const list = document.getElementById('shiftHistoryList');
+  if(!list) return;
+  if(myShiftsCache.length===0){ list.innerHTML = '<div class="cart-empty">لسه مفيش شيفتات مقفولة</div>'; return; }
+  list.innerHTML = myShiftsCache.slice(0,30).map(s=>{
+    const closed = s.closedAt ? s.closedAt.toDate().toLocaleString('ar-EG') : '...';
+    return `<div class="sale-row" style="cursor:default;">
+      <div>
+        <div class="time">${closed}</div>
+        <div class="items">فواتير: ${s.salesCount||0} · كاش ${((s.cashTotal||0)).toFixed(2)} · فيزا ${((s.visaTotal||0)).toFixed(2)} · محفظة ${((s.walletTotal||0)).toFixed(2)}</div>
+      </div>
+      <div class="amt">${(s.netTotal||0).toFixed(2)} ج.م</div>
+    </div>`;
+  }).join('');
+}
+
+async function closeShift(){
+  const data = computeOpenShiftData();
+  if(data.mySales.length===0 && data.myReturns.length===0){ toast('لسه مفيش عمليات في الشيفت ده','err'); return; }
+  if(!confirm('متأكد إنك عايز تقفل الشيفت؟')) return;
+  const btn = document.getElementById('closeShiftBtn');
+  btn.disabled = true; btn.textContent = 'جاري القفل...';
+  try{
+    const shiftRef = db.collection('shifts').doc();
+    const closeTime = new Date();
+    await shiftRef.set({
+      cashier: currentUserEmail,
+      openedAt: firebase.firestore.Timestamp.fromDate(data.shiftStart),
+      closedAt: firebase.firestore.FieldValue.serverTimestamp(),
+      salesCount: data.mySales.length,
+      cashTotal: data.totals.cash,
+      visaTotal: data.totals.visa,
+      walletTotal: data.totals.wallet,
+      grossTotal: data.grossTotal,
+      returnsTotal: data.returnsTotal,
+      netTotal: data.netTotal
+    });
+    toast('اتقفل الشيفت بنجاح ✅','ok');
+    openShiftReport({...data, closedAt: closeTime});
+  }catch(e){
+    console.error(e); toast('حصل خطأ أثناء قفل الشيفت','err');
+  }finally{
+    btn.textContent = 'قفل الشيفت وطباعة التقرير';
+  }
+}
+
+function openShiftReport(data){
+  lastClosedShiftReport = data;
+  document.getElementById('srStoreName').textContent = STORE_NAME;
+  document.getElementById('srCashier').textContent = displayNameFor(currentUserEmail);
+  document.getElementById('srFrom').textContent = data.shiftStart.toLocaleString('ar-EG');
+  document.getElementById('srTo').textContent = (data.closedAt||new Date()).toLocaleString('ar-EG');
+  document.getElementById('srCash').textContent = data.totals.cash.toFixed(2);
+  document.getElementById('srVisa').textContent = data.totals.visa.toFixed(2);
+  document.getElementById('srWallet').textContent = data.totals.wallet.toFixed(2);
+  document.getElementById('srCount').textContent = data.mySales.length;
+  document.getElementById('srGross').textContent = data.grossTotal.toFixed(2);
+  document.getElementById('srReturns').textContent = data.returnsTotal.toFixed(2);
+  document.getElementById('srNet').textContent = data.netTotal.toFixed(2);
+  document.getElementById('shiftReportModal').classList.add('show');
+}
+function closeShiftReport(){ document.getElementById('shiftReportModal').classList.remove('show'); }
+function printShiftReport(){
+  const content = document.getElementById('shiftReportPrintArea').innerHTML;
+  const w = window.open('', '', 'width=380,height=640');
+  w.document.write(`
+    <html dir="rtl"><head><title>تقرير شيفت ${STORE_NAME}</title>
+    <style>
+      body{font-family:Arial,'Tahoma',sans-serif;padding:18px;color:#1A1A1A;}
+      .mono{direction:ltr;unicode-bidi:isolate;font-family:'Courier New',monospace;}
+      .row-between{display:flex;justify-content:space-between;font-size:13px;padding:4px 0;}
+      .row-total{display:flex;justify-content:space-between;font-size:16px;font-weight:800;padding:8px 0;}
+    </style></head>
+    <body>${content}</body></html>`);
+  w.document.close();
+  w.onload = ()=>{ w.print(); };
+  setTimeout(()=>{ try{ w.print(); }catch(e){} }, 300);
+}
+
+/* =========================================================
+   ---------------- ANALYTICS (التحليلات — أدمن بس) ----------------
    ========================================================= */
 let allSalesAnalytics = [];
 let allReturnsAnalytics = [];
 let analyticsPeriod = 'daily';
 
 function listenAnalyticsData(){
-  // بيسحب كل عمليات البيع والمرتجعات (مش محدود بـ100) عشان التحليل يبقى شامل
+  // بيسحب كل عمليات البيع والمرتجعات (مش محدود بـ100) عشان التحليل والشيفت يبقوا شاملين
   db.collection('sales').orderBy('createdAt','desc').onSnapshot(snap=>{
     allSalesAnalytics = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(s=>s.createdAt);
     renderAnalytics();
+    renderShiftTab();
   });
   db.collection('returns').orderBy('createdAt','desc').onSnapshot(snap=>{
     allReturnsAnalytics = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(r=>r.createdAt);
     renderAnalytics();
+    renderShiftTab();
   });
 }
 
 function setAnalyticsPeriod(p){
   analyticsPeriod = p;
-  document.querySelectorAll('.period-btn').forEach(b=>b.classList.toggle('active', b.dataset.period===p));
+  document.querySelectorAll('.period-btn[data-period]').forEach(b=>b.classList.toggle('active', b.dataset.period===p));
   renderAnalytics();
 }
 
@@ -1415,6 +1670,7 @@ function periodLabel(key, period){
 }
 
 function renderAnalytics(){
+  if(!isCurrentUserAdmin) return; // التحليلات الكاملة للأدمن بس
   const period = analyticsPeriod;
   const salesByKey = {};
   const returnsByKey = {};
