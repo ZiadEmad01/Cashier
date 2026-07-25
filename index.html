@@ -62,8 +62,8 @@
   header .userbox{font-size:12px;color:var(--ink-soft);display:flex;align-items:center;gap:10px;}
   header .userbox button{background:transparent;color:var(--ink-soft);font-size:12px;text-decoration:underline;}
 
-  nav{display:flex;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:56px;z-index:19;}
-  nav button{flex:1;padding:13px 6px;background:transparent;color:var(--ink-soft);font-weight:600;font-size:13.5px;border-bottom:3px solid transparent;}
+  nav{display:flex;background:var(--card);border-bottom:1px solid var(--line);position:sticky;top:56px;z-index:19;overflow-x:auto;}
+  nav button{flex:1;padding:13px 6px;background:transparent;color:var(--ink-soft);font-weight:600;font-size:13.5px;border-bottom:3px solid transparent;white-space:nowrap;}
   nav button.active{color:var(--ink);border-bottom-color:var(--accent);}
 
   main{max-width:1100px;margin:0 auto;padding:18px;}
@@ -134,7 +134,7 @@
   .sum-card{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px 20px;flex:1;min-width:140px;box-shadow:var(--shadow);}
   .sum-card .label{font-size:11.5px;color:var(--ink-soft);margin-bottom:6px;}
   .sum-card .val{font-family:'Cairo',sans-serif;font-weight:800;font-size:22px;color:var(--teal);}
-  .sale-row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:border-color .15s, transform .1s;}
+  .sale-row{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 16px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;transition:border-color .15s, transform .1s;gap:10px;}
   .sale-row:hover{border-color:var(--accent);}
   .sale-row:active{transform:scale(0.99);}
   .sale-row .time{font-size:11.5px;color:var(--ink-soft);}
@@ -167,6 +167,13 @@
   .toast.show{opacity:1;transform:translateY(0);}
   .toast.err{background:#000;color:var(--danger);border-color:var(--danger);}
   .toast.ok{background:var(--accent);color:#161207;border-color:var(--accent);}
+
+  /* ---------- Returns & Analytics ---------- */
+  .period-row{display:flex;gap:8px;margin-bottom:16px;}
+  .period-btn{flex:1;padding:11px 6px;background:var(--card);color:var(--ink-soft);font-weight:600;font-size:13px;border:1px solid var(--line);border-radius:10px;}
+  .period-btn.active{background:var(--accent);color:#161207;border-color:var(--accent);}
+  .ret-chk-row{display:flex;align-items:flex-start;gap:8px;}
+  .ret-chk-row input[type=checkbox]{margin-top:3px;width:16px;height:16px;accent-color:var(--accent);}
 
   ::-webkit-scrollbar{width:6px;}
   ::-webkit-scrollbar-thumb{background:var(--line);border-radius:10px;}
@@ -224,6 +231,8 @@
     <button class="tabbtn active" data-tab="pos">الكاشير</button>
     <button class="tabbtn" data-tab="products">المنتجات</button>
     <button class="tabbtn" data-tab="sales">المبيعات</button>
+    <button class="tabbtn" data-tab="returns">المرتجعات</button>
+    <button class="tabbtn" data-tab="analytics">التحليلات</button>
     <button class="tabbtn" data-tab="admin" id="adminTabBtn" style="display:none">الإدارة</button>
   </nav>
 
@@ -275,6 +284,51 @@
         <div class="sum-card"><div class="label">عدد الفواتير</div><div class="val mono" id="todayCount">0</div></div>
       </div>
       <div id="salesList"></div>
+    </section>
+
+    <!-- ---------- RETURNS TAB ---------- -->
+    <section id="tab-returns" class="tabpage">
+      <div class="receipt">
+        <div class="receipt-head"><h3>البحث عن فاتورة</h3></div>
+        <div class="receipt-body" style="max-height:none">
+          <div class="manual-row">
+            <input type="text" id="returnSearchInput" placeholder="اكتب رقم الفاتورة (مثال: A1B2C3)..." onkeydown="if(event.key==='Enter')searchInvoiceForReturn()">
+            <button onclick="searchInvoiceForReturn()">بحث</button>
+          </div>
+          <div id="returnSearchMsg" class="cart-empty" style="display:none"></div>
+          <div id="returnSaleFound" style="display:none;margin-top:14px;">
+            <div class="scan-hint" style="text-align:right;margin-bottom:8px">اختار المنتجات والكمية المرتجعة</div>
+            <div id="returnItemsList"></div>
+            <div class="field" style="margin-top:14px">
+              <label>سبب الاسترجاع</label>
+              <input type="text" id="returnReason" placeholder="مثال: مقاس غلط / عيب في القطعة">
+            </div>
+            <button class="checkout-btn" style="margin-top:12px" onclick="submitReturn()">تنفيذ الاسترجاع</button>
+          </div>
+        </div>
+      </div>
+
+      <h3 style="margin:20px 0 10px;font-size:15px">آخر المرتجعات</h3>
+      <div id="returnsList"></div>
+    </section>
+
+    <!-- ---------- ANALYTICS TAB ---------- -->
+    <section id="tab-analytics" class="tabpage">
+      <div class="period-row">
+        <button class="period-btn active" data-period="daily" onclick="setAnalyticsPeriod('daily')">يومي</button>
+        <button class="period-btn" data-period="monthly" onclick="setAnalyticsPeriod('monthly')">شهري</button>
+        <button class="period-btn" data-period="yearly" onclick="setAnalyticsPeriod('yearly')">سنوي</button>
+      </div>
+      <div class="sales-summary">
+        <div class="sum-card"><div class="label">إجمالي المبيعات</div><div class="val mono" id="anTotalSales">0.00</div></div>
+        <div class="sum-card"><div class="label">إجمالي المرتجعات</div><div class="val mono" id="anTotalReturns">0.00</div></div>
+        <div class="sum-card"><div class="label">صافي الإيراد</div><div class="val mono" id="anNet">0.00</div></div>
+        <div class="sum-card"><div class="label">عدد الفواتير</div><div class="val mono" id="anCount">0</div></div>
+      </div>
+      <h3 style="margin:20px 0 10px;font-size:15px">التفصيل</h3>
+      <div id="analyticsBreakdown"></div>
+      <h3 style="margin:20px 0 10px;font-size:15px">الأكثر مبيعًا</h3>
+      <div id="topProducts"></div>
     </section>
 
     <!-- ---------- ADMIN TAB (حساب الإدارة بس) ---------- -->
@@ -479,6 +533,8 @@ auth.onAuthStateChanged(user=>{
     listenProducts();
     listenSalesToday();
     listenCashiers();
+    listenReturns();
+    listenAnalyticsData();
   } else {
     document.getElementById('loginScreen').style.display='flex';
     document.getElementById('app').style.display='none';
@@ -839,7 +895,10 @@ function listenSalesToday(){
           <div class="time">${time}</div>
           <div class="items">${itemsSummary}</div>
         </div>
-        <div class="amt">${s.total.toFixed(2)} ج.م</div>
+        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+          <div class="amt">${s.total.toFixed(2)} ج.م</div>
+          <button class="ci-remove" onclick="event.stopPropagation();startReturnFromSale('${s.id}')">استرجاع</button>
+        </div>
       </div>`;
     }).join('');
   });
@@ -973,6 +1032,260 @@ function printInvoice(){
   w.document.close();
   w.onload = ()=>{ w.print(); };
   setTimeout(()=>{ try{ w.print(); }catch(e){} }, 300);
+}
+
+/* =========================================================
+   ---------------- RETURNS (المرتجعات) ----------------
+   ========================================================= */
+let returnsCache = [];
+let currentReturnSale = null;
+
+function listenReturns(){
+  db.collection('returns').orderBy('createdAt','desc').limit(100).onSnapshot(snap=>{
+    returnsCache = snap.docs.map(d=>({id:d.id, ...d.data()}));
+    renderReturnsList();
+  });
+}
+
+function renderReturnsList(){
+  const list = document.getElementById('returnsList');
+  if(!list) return;
+  if(returnsCache.length===0){ list.innerHTML = '<div class="cart-empty">لسه مفيش مرتجعات</div>'; return; }
+  list.innerHTML = returnsCache.map(r=>{
+    const time = r.createdAt ? r.createdAt.toDate().toLocaleString('ar-EG') : '...';
+    const itemsSummary = r.items.map(i=>i.name+' ×'+i.qty).join('، ');
+    return `<div class="sale-row" style="cursor:default;">
+      <div>
+        <div class="time">${time} — فاتورة #${(r.saleId||'').slice(-6).toUpperCase()}</div>
+        <div class="items">${itemsSummary}</div>
+        <div class="items" style="color:var(--danger)">السبب: ${r.reason||'—'} · بواسطة: ${displayNameFor(r.cashier)}</div>
+      </div>
+      <div class="amt" style="color:var(--danger)">-${(+r.total).toFixed(2)} ج.م</div>
+    </div>`;
+  }).join('');
+}
+
+// دالة مساعدة: تحسب كام قطعة اتردت قبل كده من فاتورة معينة (لكل باركود)
+function priorReturnedQtyMap(saleId){
+  const map = {};
+  returnsCache.filter(r=>r.saleId===saleId).forEach(r=>{
+    (r.items||[]).forEach(it=>{ map[it.barcode] = (map[it.barcode]||0) + it.qty; });
+  });
+  return map;
+}
+
+function searchInvoiceForReturn(){
+  const raw = document.getElementById('returnSearchInput').value.trim().toUpperCase();
+  const msgEl = document.getElementById('returnSearchMsg');
+  const foundEl = document.getElementById('returnSaleFound');
+  foundEl.style.display = 'none';
+  msgEl.style.display = 'none';
+  currentReturnSale = null;
+  if(!raw){ return; }
+
+  const sale = salesCache.find(s => s.id.toUpperCase() === raw || s.id.slice(-6).toUpperCase() === raw);
+  if(!sale){
+    msgEl.style.display = 'block';
+    msgEl.textContent = 'مفيش فاتورة بالرقم ده — تأكد إنها من آخر 100 عملية بيع';
+    return;
+  }
+  currentReturnSale = sale;
+  renderReturnItems(sale);
+  foundEl.style.display = 'block';
+}
+
+function startReturnFromSale(id){
+  document.querySelectorAll('.tabbtn').forEach(b=>b.classList.remove('active'));
+  document.querySelectorAll('.tabpage').forEach(p=>p.classList.remove('active'));
+  document.querySelector('.tabbtn[data-tab="returns"]').classList.add('active');
+  document.getElementById('tab-returns').classList.add('active');
+
+  const sale = salesCache.find(s=>s.id===id);
+  if(!sale) return;
+  document.getElementById('returnSearchInput').value = id.slice(-6).toUpperCase();
+  document.getElementById('returnSearchMsg').style.display = 'none';
+  currentReturnSale = sale;
+  renderReturnItems(sale);
+  document.getElementById('returnSaleFound').style.display = 'block';
+}
+
+function renderReturnItems(sale){
+  const already = priorReturnedQtyMap(sale.id);
+  const wrap = document.getElementById('returnItemsList');
+  wrap.innerHTML = sale.items.map((it,idx)=>{
+    const returnedBefore = already[it.barcode]||0;
+    const avail = Math.max(0, it.qty - returnedBefore);
+    return `
+    <div class="cart-item">
+      <div class="ret-chk-row">
+        <input type="checkbox" class="retChk" id="retChk${idx}" data-idx="${idx}" data-max="${avail}" ${avail>0?'checked':'disabled'}>
+        <div>
+          <div class="ci-name">${it.name}</div>
+          <div class="ci-sub mono">#${it.barcode} — ${(+it.price).toFixed(2)} ج.م${returnedBefore>0?(' · مرتجع قبل كده: '+returnedBefore):''}</div>
+        </div>
+      </div>
+      <div class="qty">
+        <button onclick="changeReturnQty(${idx},-1)">−</button>
+        <span id="retQty${idx}">${avail}</span>
+        <button onclick="changeReturnQty(${idx},1)">+</button>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function changeReturnQty(idx, delta){
+  const chk = document.getElementById('retChk'+idx);
+  if(!chk || chk.disabled) return;
+  const span = document.getElementById('retQty'+idx);
+  const max = +chk.dataset.max;
+  let val = parseInt(span.textContent) + delta;
+  if(val < 0) val = 0;
+  if(val > max) val = max;
+  span.textContent = val;
+}
+
+async function submitReturn(){
+  if(!currentReturnSale){ toast('دور على فاتورة الأول','err'); return; }
+  const reason = document.getElementById('returnReason').value.trim();
+  if(!reason){ toast('اكتب سبب الاسترجاع','err'); return; }
+
+  const items = [];
+  document.querySelectorAll('.retChk').forEach(chk=>{
+    const idx = +chk.dataset.idx;
+    const qty = parseInt(document.getElementById('retQty'+idx).textContent);
+    if(chk.checked && !chk.disabled && qty > 0){
+      const src = currentReturnSale.items[idx];
+      items.push({productId: src.productId, barcode: src.barcode, name: src.name, price: src.price, qty});
+    }
+  });
+  if(items.length === 0){ toast('اختار منتج واحد على الأقل وحدد الكمية','err'); return; }
+
+  const total = items.reduce((s,i)=>s + i.price*i.qty, 0);
+  try{
+    const batch = db.batch();
+    const retRef = db.collection('returns').doc();
+    batch.set(retRef, {
+      saleId: currentReturnSale.id,
+      items, reason, total,
+      cashier: auth.currentUser.email,
+      createdAt: firebase.firestore.FieldValue.serverTimestamp()
+    });
+    items.forEach(it=>{
+      const p = products.find(x=>x.id===it.productId);
+      const newStock = (p?.stock||0) + it.qty;
+      batch.update(db.collection('products').doc(it.productId), {stock:newStock});
+    });
+    await batch.commit();
+    beep(440,0.2);
+    toast('تم تسجيل المرتجع وإرجاعه للمخزون ✅','ok');
+    document.getElementById('returnSaleFound').style.display = 'none';
+    document.getElementById('returnSearchInput').value = '';
+    document.getElementById('returnReason').value = '';
+    currentReturnSale = null;
+  }catch(e){
+    console.error(e); toast('حصل خطأ أثناء تسجيل المرتجع','err');
+  }
+}
+
+/* =========================================================
+   ---------------- ANALYTICS (التحليلات) ----------------
+   ========================================================= */
+let allSalesAnalytics = [];
+let allReturnsAnalytics = [];
+let analyticsPeriod = 'daily';
+
+function listenAnalyticsData(){
+  // بيسحب كل عمليات البيع والمرتجعات (مش محدود بـ100) عشان التحليل يبقى شامل
+  db.collection('sales').orderBy('createdAt','desc').onSnapshot(snap=>{
+    allSalesAnalytics = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(s=>s.createdAt);
+    renderAnalytics();
+  });
+  db.collection('returns').orderBy('createdAt','desc').onSnapshot(snap=>{
+    allReturnsAnalytics = snap.docs.map(d=>({id:d.id, ...d.data()})).filter(r=>r.createdAt);
+    renderAnalytics();
+  });
+}
+
+function setAnalyticsPeriod(p){
+  analyticsPeriod = p;
+  document.querySelectorAll('.period-btn').forEach(b=>b.classList.toggle('active', b.dataset.period===p));
+  renderAnalytics();
+}
+
+function periodKey(date, period){
+  const y = date.getFullYear();
+  const m = String(date.getMonth()+1).padStart(2,'0');
+  const d = String(date.getDate()).padStart(2,'0');
+  if(period==='daily') return `${y}-${m}-${d}`;
+  if(period==='monthly') return `${y}-${m}`;
+  return `${y}`;
+}
+const AR_MONTHS = ['يناير','فبراير','مارس','أبريل','مايو','يونيو','يوليو','أغسطس','سبتمبر','أكتوبر','نوفمبر','ديسمبر'];
+function periodLabel(key, period){
+  if(period==='yearly') return 'سنة '+key;
+  if(period==='monthly'){
+    const [y,m] = key.split('-');
+    return AR_MONTHS[(+m)-1]+' '+y;
+  }
+  return key;
+}
+
+function renderAnalytics(){
+  const period = analyticsPeriod;
+  const salesByKey = {};
+  const returnsByKey = {};
+  const productQty = {};
+
+  allSalesAnalytics.forEach(s=>{
+    const date = s.createdAt.toDate();
+    const key = periodKey(date, period);
+    salesByKey[key] = (salesByKey[key]||0) + (s.total||0);
+    (s.items||[]).forEach(it=>{ productQty[it.name] = (productQty[it.name]||0) + it.qty; });
+  });
+  allReturnsAnalytics.forEach(r=>{
+    const date = r.createdAt.toDate();
+    const key = periodKey(date, period);
+    returnsByKey[key] = (returnsByKey[key]||0) + (r.total||0);
+  });
+
+  const totalSales = allSalesAnalytics.reduce((s,x)=>s+(x.total||0), 0);
+  const totalReturns = allReturnsAnalytics.reduce((s,x)=>s+(x.total||0), 0);
+  const elTotalSales = document.getElementById('anTotalSales');
+  if(!elTotalSales) return; // التبويب لسه ما اتفتحش
+  elTotalSales.textContent = totalSales.toFixed(2);
+  document.getElementById('anTotalReturns').textContent = totalReturns.toFixed(2);
+  document.getElementById('anNet').textContent = (totalSales - totalReturns).toFixed(2);
+  document.getElementById('anCount').textContent = allSalesAnalytics.length;
+
+  const keys = Array.from(new Set([...Object.keys(salesByKey), ...Object.keys(returnsByKey)])).sort().reverse();
+  const wrap = document.getElementById('analyticsBreakdown');
+  if(keys.length===0){
+    wrap.innerHTML = '<div class="cart-empty">لسه مفيش بيانات كفاية للتحليل</div>';
+  } else {
+    wrap.innerHTML = keys.slice(0,60).map(k=>{
+      const sVal = salesByKey[k]||0;
+      const rVal = returnsByKey[k]||0;
+      return `<div class="sale-row" style="cursor:default;">
+        <div>
+          <div style="font-weight:600;font-size:13.5px">${periodLabel(k,period)}</div>
+          <div class="time">مبيعات: ${sVal.toFixed(2)} ج.م ${rVal>0?('· مرتجعات: '+rVal.toFixed(2)+' ج.م'):''}</div>
+        </div>
+        <div class="amt">${(sVal-rVal).toFixed(2)} ج.م</div>
+      </div>`;
+    }).join('');
+  }
+
+  const topWrap = document.getElementById('topProducts');
+  const top = Object.entries(productQty).sort((a,b)=>b[1]-a[1]).slice(0,10);
+  if(top.length===0){
+    topWrap.innerHTML = '<div class="cart-empty">لسه مفيش بيانات</div>';
+  } else {
+    topWrap.innerHTML = top.map(([name,qty])=>`
+      <div class="sale-row" style="cursor:default;">
+        <div style="font-weight:600;font-size:13.5px">${name}</div>
+        <div class="amt">${qty} قطعة</div>
+      </div>`).join('');
+  }
 }
 </script>
 </body>
