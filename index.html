@@ -283,6 +283,9 @@
         <div class="sum-card"><div class="label">مبيعات النهاردة</div><div class="val mono" id="todayTotal">0.00</div></div>
         <div class="sum-card"><div class="label">عدد الفواتير</div><div class="val mono" id="todayCount">0</div></div>
       </div>
+      <div class="toolbar">
+        <input type="text" id="salesSearch" placeholder="دور برقم الفاتورة أو اسم منتج..." oninput="renderSalesList()">
+      </div>
       <div id="salesList"></div>
     </section>
 
@@ -884,24 +887,42 @@ function listenSalesToday(){
     const total = todaySales.reduce((s,x)=>s+x.total,0);
     document.getElementById('todayTotal').textContent = total.toFixed(2);
     document.getElementById('todayCount').textContent = todaySales.length;
-
-    const list = document.getElementById('salesList');
-    if(sales.length===0){ list.innerHTML = '<div class="cart-empty">لسه مفيش عمليات بيع</div>'; return; }
-    list.innerHTML = sales.map(s=>{
-      const time = s.createdAt ? s.createdAt.toDate().toLocaleString('ar-EG') : '...';
-      const itemsSummary = s.items.map(i=>i.name+' ×'+i.qty).join('، ');
-      return `<div class="sale-row" onclick="openSaleInvoice('${s.id}')">
-        <div>
-          <div class="time">${time}</div>
-          <div class="items">${itemsSummary}</div>
-        </div>
-        <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
-          <div class="amt">${s.total.toFixed(2)} ج.م</div>
-          <button class="ci-remove" onclick="event.stopPropagation();startReturnFromSale('${s.id}')">استرجاع</button>
-        </div>
-      </div>`;
-    }).join('');
+    renderSalesList();
   });
+}
+
+// بيفلتر قايمة المبيعات برقم الفاتورة أو باسم منتج جوه الفاتورة
+function renderSalesList(){
+  const list = document.getElementById('salesList');
+  if(!list) return;
+  const q = (document.getElementById('salesSearch')?.value||'').trim().toUpperCase();
+  let sales = salesCache;
+  if(q){
+    sales = sales.filter(s=>{
+      const invNo = s.id.slice(-6).toUpperCase();
+      const fullId = s.id.toUpperCase();
+      const inItems = (s.items||[]).some(i=>i.name.toUpperCase().includes(q) || (i.barcode||'').toUpperCase().includes(q));
+      return invNo.includes(q) || fullId.includes(q) || inItems;
+    });
+  }
+  if(sales.length===0){
+    list.innerHTML = `<div class="cart-empty">${q ? 'مفيش فواتير مطابقة للبحث' : 'لسه مفيش عمليات بيع'}</div>`;
+    return;
+  }
+  list.innerHTML = sales.map(s=>{
+    const time = s.createdAt ? s.createdAt.toDate().toLocaleString('ar-EG') : '...';
+    const itemsSummary = s.items.map(i=>i.name+' ×'+i.qty).join('، ');
+    return `<div class="sale-row" onclick="openSaleInvoice('${s.id}')">
+      <div>
+        <div class="time">فاتورة #${s.id.slice(-6).toUpperCase()} — ${time}</div>
+        <div class="items">${itemsSummary}</div>
+      </div>
+      <div style="display:flex;flex-direction:column;align-items:flex-end;gap:6px;">
+        <div class="amt">${s.total.toFixed(2)} ج.م</div>
+        <button class="ci-remove" onclick="event.stopPropagation();startReturnFromSale('${s.id}')">استرجاع</button>
+      </div>
+    </div>`;
+  }).join('');
 }
 
 function openSaleInvoice(id){
